@@ -4,4 +4,5 @@
 
 namespace NKikimr {
     IActor* CreateTicketParser(const NKikimrProto::TAuthConfig& authConfig);
+    IActor* CreateTicketParser(const NKikimrProto::TAuthConfig& authConfig, const NKikimrConfig::TClientCertificateAuthorization &clientCertificateAuth);
 }

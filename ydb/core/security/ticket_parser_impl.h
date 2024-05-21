@@ -1,6 +1,7 @@
 #pragma once
 #include "ticket_parser_log.h"
 #include "ldap_auth_provider.h"
+#include "cert_auth_utils.h"
 
 #include <ydb/core/base/appdata.h>
 #include <ydb/core/base/counters.h>
@@ -255,6 +256,7 @@ protected:
     using IActorOps::Schedule;
 
     NKikimrProto::TAuthConfig Config;
+    TDynamicNodeAuthorizationParams DynamicNodeAuthValues;
     TDuration ExpireTime = TDuration::Hours(24); // after what time ticket will expired and removed from cache
 
     template <typename TTokenRecord>
@@ -659,7 +661,7 @@ private:
 
     template <typename TTokenRecord>
     bool CanInitTokenFromCertificate(const TString& key, TTokenRecord& record) {
-        if (record.TokenType != TDerived::ETokenType::Certificate) {
+        if (record.TokenType != TDerived::ETokenType::Certificate || !AppData()->FeatureFlags.GetEnableDynamicNodeAuthorization() || !DynamicNodeAuthValues) {
             return false;
         }
         CounterTicketsCertificate->Inc();
@@ -669,8 +671,10 @@ private:
             return false;
         }
         TStringBuilder dn;
+        TMap<TString, TString> subjectDescription;
         for (const auto& [attribute, value] : X509CertificateReader::ReadAllSubjectTerms(x509cert)) {
             dn << attribute << "=" << value << ",";
+            subjectDescription[attribute] = value;
         }
         if (dn.empty()) {
             SetError(key, record, { .Message = "Cannot create token from certificate. Cannot extract subject from certificate", .Retryable = false });
@@ -678,6 +682,12 @@ private:
         }
         dn.remove(dn.size() - 1);
         dn << "@" << Config.GetCertificateAuthenticationDomain();
+
+        if (!DynamicNodeAuthValues.IsSubjectDescriptionMatched(subjectDescription)) {
+            SetError(key, record, { .Message = "Access denied with this client certificate", .Retryable = false });
+            return false;
+        }
+
         SetToken(key, record, new NACLib::TUserToken({
             .OriginalUserToken = record.Ticket,
             .UserSID = dn,
@@ -819,7 +829,7 @@ private:
         }
         if (ticket.empty() && !signature.AccessKeyId) {
             TEvTicketParser::TError error;
-            error.Message = "Ticket is empty";
+            error.Message = (ev->Get()->AuthInfo.IsCertificate ? "Cannot create token from certificate. Certificate had not been provided" : "Ticket is empty");
             error.Retryable = false;
             BLOG_ERROR("Ticket " << MaskTicket(ticket) << ": " << error);
             Send(sender, new TEvTicketParser::TEvAuthorizeTicketResult(ev->Get()->AuthInfo, error), 0, cookie);
@@ -2094,6 +2104,10 @@ public:
 
     TTicketParserImpl(const NKikimrProto::TAuthConfig& authConfig)
         : Config(authConfig) {}
+
+    TTicketParserImpl(const NKikimrProto::TAuthConfig& authConfig, const NKikimrConfig::TClientCertificateAuthorization &clientCertificateAuth)
+        : Config(authConfig)
+        , DynamicNodeAuthValues(GetDynamicNodeAuthorizationParams(clientCertificateAuth)) {}
 };
 
 }
