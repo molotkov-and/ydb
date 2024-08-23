@@ -1,6 +1,7 @@
 #pragma once
 
 #include "oidc_protected_page.h"
+#include "oidc_session.h"
 
 namespace NMVP {
 
@@ -32,12 +33,22 @@ public:
 
     void Handle(TEvPrivate::TEvErrorResponse::TPtr event, const NActors::TActorContext& ctx) {
         LOG_DEBUG_S(ctx, EService::MVP, "SessionService.Check(): " << event->Get()->Status);
-        NHttp::THttpOutgoingResponsePtr httpResponse;
         if (event->Get()->Status == "400") {
-            httpResponse = GetHttpOutgoingResponsePtr(event->Get()->Details, Request, Settings, IsAjaxRequest);
+            SaveSession(NOIDC::TOidcSession(Request, Settings, IsAjaxRequest), ctx);
+            // httpResponse = GetHttpOutgoingResponsePtr(event->Get()->Details, Request, Settings, IsAjaxRequest);
         } else {
-            httpResponse = Request->CreateResponse( event->Get()->Status, event->Get()->Message, "text/plain", event->Get()->Details);
+            NHttp::THttpOutgoingResponsePtr httpResponse = Request->CreateResponse( event->Get()->Status, event->Get()->Message, "text/plain", event->Get()->Details);
+            ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
+            Die(ctx);
         }
+    }
+
+    void Handle(TEvPrivate::TEvRequestAuthorizationCode::TPtr event, const NActors::TActorContext& ctx) {
+        NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = event->Get()->Session,
+                                                                                    .IncomingRequest = Request,
+                                                                                    .Settings = Settings,
+                                                                                    .ResponseHeaders = NHttp::THeadersBuilder(),
+                                                                                    .NeedStoreSessionOnClientSide = true});
         ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
         Die(ctx);
     }
@@ -47,6 +58,7 @@ public:
             HFunc(NHttp::TEvHttpProxy::TEvHttpIncomingResponse, HandleProxy);
             HFunc(TEvPrivate::TEvCheckSessionResponse, Handle);
             HFunc(TEvPrivate::TEvErrorResponse, Handle);
+            HFunc(TEvPrivate::TEvRequestAuthorizationCode, Handle);
         }
     }
 
@@ -93,6 +105,16 @@ private:
             }
         }
         return false;
+    }
+
+    void SaveSession(const NOIDC::TOidcSession& oidcSession, const NActors::TActorContext& ctx) const {
+        if (Settings.StoreSessionsOnServerSideSetting.Enable) {
+            oidcSession.SaveSessionOnServerSide([oidcSession, &ctx] () {
+                ctx.Send(ctx.SelfID, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
+            });
+        } else {
+            ctx.Send(ctx.SelfID, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
+        }
     }
 };
 

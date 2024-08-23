@@ -1,6 +1,7 @@
 #pragma once
 
 #include "oidc_session_create.h"
+#include "oidc_session.h"
 
 namespace NMVP {
 
@@ -73,7 +74,11 @@ public:
         LOG_DEBUG_S(ctx, EService::MVP, "SessionService.Create(): " << event->Get()->Status);
         NHttp::THttpOutgoingResponsePtr httpResponse;
         if (event->Get()->Status == "400") {
-            httpResponse = GetHttpOutgoingResponsePtr(Request, Settings, ResponseHeaders, IsAjaxRequest);
+            httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings, IsAjaxRequest),
+                                                    .IncomingRequest = Request,
+                                                    .Settings = Settings,
+                                                    .ResponseHeaders = ResponseHeaders,
+                                                    .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);
         } else {
             ResponseHeaders.Set("Content-Type", "text/plain");
             httpResponse = Request->CreateResponse( event->Get()->Status, event->Get()->Message, ResponseHeaders, event->Get()->Details);
