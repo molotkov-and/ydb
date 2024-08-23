@@ -1,6 +1,7 @@
 #pragma once
 
 #include "oidc_protected_page.h"
+#include "oidc_session.h"
 
 namespace NMVP {
 
@@ -112,7 +113,11 @@ private:
 
     void RequestAuthorizationCode(const NActors::TActorContext& ctx) {
         LOG_DEBUG_S(ctx, EService::MVP, "Request authorization code");
-        NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr(Request, Settings, IsAjaxRequest);
+        NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings, IsAjaxRequest),
+                                                                                  .IncomingRequest = Request,
+                                                                                  .Settings = Settings,
+                                                                                  .ResponseHeaders = NHttp::THeadersBuilder(),
+                                                                                  .NeedStoreSessionOnClientSide = true}/*Request, Settings, IsAjaxRequest*/);
         ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
         Die(ctx);
     }

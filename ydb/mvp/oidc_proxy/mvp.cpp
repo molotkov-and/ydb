@@ -220,7 +220,7 @@ TIntrusivePtr<NActors::NLog::TSettings> TMVP::BuildLoggerSettings() {
 
 void TMVP::TryGetOidcOptionsFromConfig(const YAML::Node& config) {
     auto oidc = config["oidc"];
-   if (!oidc) {
+    if (!oidc) {
         ythrow yexception() << "Check that `oidc` section exists and is on the same indentation as `generic` section";
     }
 
@@ -237,6 +237,17 @@ void TMVP::TryGetOidcOptionsFromConfig(const YAML::Node& config) {
         Cout << host << " added to allowed_proxy_hosts" << Endl;
         OpenIdConnectSettings.AllowedProxyHosts.push_back(TString(host));
     }
+
+    YAML::Node storeSessionsOnServerSide = oidc["store_sessions_on_server_side"];
+    if (storeSessionsOnServerSide) {
+        Cout << "Started processing store_sessions_on_server_side..." << Endl;
+        auto& storeSessionsOnServerSideSettings = OpenIdConnectSettings.StoreSessionsOnServerSideSetting;
+        storeSessionsOnServerSideSettings.Enable = storeSessionsOnServerSide["enable"].as<bool>(false);
+        storeSessionsOnServerSideSettings.Endpoint = storeSessionsOnServerSide["endpoint"].as<std::string>("");
+        storeSessionsOnServerSideSettings.Database = storeSessionsOnServerSide["database"].as<std::string>("");
+        storeSessionsOnServerSideSettings.AccessTokenName = storeSessionsOnServerSide["db_access_token_name"].as<std::string>("");
+    }
+
     Cout << "Finished processing allowed_proxy_hosts." << Endl;
 }
 

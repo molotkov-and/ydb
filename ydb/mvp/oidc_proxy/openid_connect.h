@@ -9,9 +9,17 @@
 #include <ydb/library/actors/http/http.h>
 #include <ydb/library/grpc/client/grpc_client_low.h>
 #include <library/cpp/string_utils/base64/base64.h>
+#include "oidc_session.h"
 
 struct TOpenIdConnectSettings {
-    static const inline TString YDB_OIDC_COOKIE = "ydb_oidc_cookie";
+    struct TStoreSessionsOnServerSideSettings {
+        bool Enable = false;
+        TString Endpoint;
+        TString Database;
+        TString AccessTokenName;
+    };
+
+    // static const inline TString YDB_OIDC_COOKIE = "ydb_oidc_cookie";
     static const inline TString SESSION_COOKIE = "session_cookie";
 
     static const inline TString DEFAULT_CLIENT_ID = "yc.oauth.ydb-viewer";
@@ -25,6 +33,7 @@ struct TOpenIdConnectSettings {
     TString AuthorizationServerAddress;
     TString ClientSecret;
     std::vector<TString> AllowedProxyHosts;
+    TStoreSessionsOnServerSideSettings StoreSessionsOnServerSideSetting;
 
     NMvp::EAccessServiceType AccessServiceType = NMvp::yandex_v2;
     TString AuthUrlPath = DEFAULT_AUTH_URL_PATH;
@@ -48,16 +57,25 @@ struct TOpenIdConnectSettings {
     }
 };
 
-TString HmacSHA256(TStringBuf key, TStringBuf data);
+struct TRequestAuthorizationCodeInitializer {
+    NOIDC::TOidcSession OidcSession;
+    NHttp::THttpIncomingRequestPtr IncomingRequest;
+    TOpenIdConnectSettings Settings;
+    NHttp::THeadersBuilder ResponseHeaders;
+    bool NeedStoreSessionOnClientSide = true;
+};
+
+// TString HmacSHA256(TStringBuf key, TStringBuf data);
 void SetHeader(NYdbGrpc::TCallMeta& meta, const TString& name, const TString& value);
-TString GenerateCookie(TStringBuf state, TStringBuf redirectUrl, const TString& secret, bool isAjaxRequest);
-NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, NHttp::THeadersBuilder& responseHeaders, bool isAjaxRequest = false);
-NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest = false);
+NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const TRequestAuthorizationCodeInitializer& initializer);
+// NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const NOIDC::TOidcSession& oidcSession, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest = false);
+// TString GenerateCookie(TStringBuf state, TStringBuf redirectUrl, const TString& secret, bool isAjaxRequest);
 bool DetectAjaxRequest(const NHttp::THeaders& headers);
-TString CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state);
+// TString CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state);
 TString CreateNameSessionCookie(TStringBuf key);
 const TString& GetAuthCallbackUrl();
 TString CreateSecureCookie(const TString& name, const TString& value);
+// TString CreateOidcSessionCookie();
 
 template <typename TSessionService>
 std::unique_ptr<NYdbGrpc::TServiceConnection<TSessionService>> CreateGRpcServiceConnection(const TString& endpoint) {
@@ -77,6 +95,7 @@ struct TEvPrivate {
         EvCheckSessionResponse = EventSpaceBegin(NActors::TEvents::ES_PRIVATE),
         EvCreateSessionResponse,
         EvErrorResponse,
+        EvRequestAuthorizationCode,
         EvEnd
     };
 
@@ -147,5 +166,13 @@ struct TEvPrivate {
             Message = status.Msg;
             Details = status.Details;
         }
+    };
+
+    struct TEvRequestAuthorizationCode : NActors::TEventLocal<TEvRequestAuthorizationCode, EvRequestAuthorizationCode> {
+        NOIDC::TOidcSession Session;
+
+        TEvRequestAuthorizationCode(const NOIDC::TOidcSession& session)
+        : Session(session)
+        {}
     };
 };

@@ -37,80 +37,81 @@ protected:
     TString RedirectUrl;
     bool IsAjaxRequest = false;
     NHttp::THeadersBuilder ResponseHeaders;
+    NOIDC::TOidcSession OidcSession;
 
     void RemoveAppliedCookie(const TString& cookieName) {
         ResponseHeaders.Set("Set-Cookie", TStringBuilder() << cookieName << "=; Path=" << GetAuthCallbackUrl() << "; Max-Age=0");
     }
 
-    bool IsStateValid(const TString& state, const NHttp::TCookies& cookies, const NActors::TActorContext& ctx) {
-        const TString cookieName {CreateNameYdbOidcCookie(Settings.ClientSecret, state)};
-        if (!cookies.Has(cookieName)) {
-            LOG_DEBUG_S(ctx, EService::MVP, "Check state: Cannot find cookie " << cookieName);
-            return false;
-        }
-        RemoveAppliedCookie(cookieName);
-        TString cookieStruct = Base64Decode(cookies.Get(cookieName));
-        TString stateStruct;
-        TString expectedDigest;
-        NJson::TJsonValue jsonValue;
-        NJson::TJsonReaderConfig jsonConfig;
-        if (NJson::ReadJsonTree(cookieStruct, &jsonConfig, &jsonValue)) {
-            const NJson::TJsonValue* jsonStateStruct = nullptr;
-            if (jsonValue.GetValuePointer("state_struct", &jsonStateStruct)) {
-                stateStruct = jsonStateStruct->GetStringRobust();
-                stateStruct = Base64Decode(stateStruct);
-            }
-            const NJson::TJsonValue* jsonDigest = nullptr;
-            if (jsonValue.GetValuePointer("digest", &jsonDigest)) {
-                expectedDigest = jsonDigest->GetStringRobust();
-                expectedDigest = Base64Decode(expectedDigest);
-            }
-        }
-        if (stateStruct.Empty() || expectedDigest.Empty()) {
-            LOG_DEBUG_S(ctx, EService::MVP, "Check state: Struct with state and expected digest are empty");
-            return false;
-        }
-        TString digest = HmacSHA256(Settings.ClientSecret, stateStruct);
-        if (expectedDigest != digest) {
-            LOG_DEBUG_S(ctx, EService::MVP, "Check state: Calculated digest is not equal expected digest");
-            return false;
-        }
-        TString expectedState;
-        if (NJson::ReadJsonTree(stateStruct, &jsonConfig, &jsonValue)) {
-            const NJson::TJsonValue* jsonState = nullptr;
-            if (jsonValue.GetValuePointer("state", &jsonState)) {
-                expectedState = jsonState->GetStringRobust();
-            }
-            const NJson::TJsonValue* jsonRedirectUrl = nullptr;
-            if (jsonValue.GetValuePointer("redirect_url", &jsonRedirectUrl)) {
-                RedirectUrl = jsonRedirectUrl->GetStringRobust();
-            } else {
-                LOG_DEBUG_S(ctx, EService::MVP, "Check state: Redirect url not found in json");
-                return false;
-            }
-            const NJson::TJsonValue* jsonExpirationTime = nullptr;
-            if (jsonValue.GetValuePointer("expiration_time", &jsonExpirationTime)) {
-                timeval timeVal {
-                    .tv_sec = jsonExpirationTime->GetIntegerRobust()
-                };
-                if (TInstant::Now() > TInstant(timeVal)) {
-                    LOG_DEBUG_S(ctx, EService::MVP, "Check state: State life time expired");
-                    return false;
-                }
-            } else {
-                LOG_DEBUG_S(ctx, EService::MVP, "Check state: Expiration time not found in json");
-                return false;
-            }
-            const NJson::TJsonValue* jsonAjaxRequest = nullptr;
-            if (jsonValue.GetValuePointer("ajax_request", &jsonAjaxRequest)) {
-                IsAjaxRequest = jsonAjaxRequest->GetBooleanRobust();
-            } else {
-                LOG_DEBUG_S(ctx, EService::MVP, "Check state: Can not detect ajax request");
-                return false;
-            }
-        }
-        return (!expectedState.Empty() && expectedState == state);
-    }
+    // bool IsStateValid(const TString& state, const NHttp::TCookies& cookies, const NActors::TActorContext& ctx) {
+    //     const TString cookieName {CreateNameYdbOidcCookie(Settings.ClientSecret, state)};
+    //     if (!cookies.Has(cookieName)) {
+    //         LOG_DEBUG_S(ctx, EService::MVP, "Check state: Cannot find cookie " << cookieName);
+    //         return false;
+    //     }
+    //     RemoveAppliedCookie(cookieName);
+    //     TString cookieStruct = Base64Decode(cookies.Get(cookieName));
+    //     TString stateStruct;
+    //     TString expectedDigest;
+    //     NJson::TJsonValue jsonValue;
+    //     NJson::TJsonReaderConfig jsonConfig;
+    //     if (NJson::ReadJsonTree(cookieStruct, &jsonConfig, &jsonValue)) {
+    //         const NJson::TJsonValue* jsonStateStruct = nullptr;
+    //         if (jsonValue.GetValuePointer("state_struct", &jsonStateStruct)) {
+    //             stateStruct = jsonStateStruct->GetStringRobust();
+    //             stateStruct = Base64Decode(stateStruct);
+    //         }
+    //         const NJson::TJsonValue* jsonDigest = nullptr;
+    //         if (jsonValue.GetValuePointer("digest", &jsonDigest)) {
+    //             expectedDigest = jsonDigest->GetStringRobust();
+    //             expectedDigest = Base64Decode(expectedDigest);
+    //         }
+    //     }
+    //     if (stateStruct.Empty() || expectedDigest.Empty()) {
+    //         LOG_DEBUG_S(ctx, EService::MVP, "Check state: Struct with state and expected digest are empty");
+    //         return false;
+    //     }
+    //     TString digest = HmacSHA256(Settings.ClientSecret, stateStruct);
+    //     if (expectedDigest != digest) {
+    //         LOG_DEBUG_S(ctx, EService::MVP, "Check state: Calculated digest is not equal expected digest");
+    //         return false;
+    //     }
+    //     TString expectedState;
+    //     if (NJson::ReadJsonTree(stateStruct, &jsonConfig, &jsonValue)) {
+    //         const NJson::TJsonValue* jsonState = nullptr;
+    //         if (jsonValue.GetValuePointer("state", &jsonState)) {
+    //             expectedState = jsonState->GetStringRobust();
+    //         }
+    //         const NJson::TJsonValue* jsonRedirectUrl = nullptr;
+    //         if (jsonValue.GetValuePointer("redirect_url", &jsonRedirectUrl)) {
+    //             RedirectUrl = jsonRedirectUrl->GetStringRobust();
+    //         } else {
+    //             LOG_DEBUG_S(ctx, EService::MVP, "Check state: Redirect url not found in json");
+    //             return false;
+    //         }
+    //         const NJson::TJsonValue* jsonExpirationTime = nullptr;
+    //         if (jsonValue.GetValuePointer("expiration_time", &jsonExpirationTime)) {
+    //             timeval timeVal {
+    //                 .tv_sec = jsonExpirationTime->GetIntegerRobust()
+    //             };
+    //             if (TInstant::Now() > TInstant(timeVal)) {
+    //                 LOG_DEBUG_S(ctx, EService::MVP, "Check state: State life time expired");
+    //                 return false;
+    //             }
+    //         } else {
+    //             LOG_DEBUG_S(ctx, EService::MVP, "Check state: Expiration time not found in json");
+    //             return false;
+    //         }
+    //         const NJson::TJsonValue* jsonAjaxRequest = nullptr;
+    //         if (jsonValue.GetValuePointer("ajax_request", &jsonAjaxRequest)) {
+    //             IsAjaxRequest = jsonAjaxRequest->GetBooleanRobust();
+    //         } else {
+    //             LOG_DEBUG_S(ctx, EService::MVP, "Check state: Can not detect ajax request");
+    //             return false;
+    //         }
+    //     }
+    //     return (!expectedState.Empty() && expectedState == state);
+    // }
 
     TString ChangeSameSiteFieldInSessionCookie(const TString& cookie) {
         const static TStringBuf SameSiteParameter {"SameSite=Lax"};
@@ -134,6 +135,7 @@ public:
         , Request(request)
         , HttpProxyId(httpProxyId)
         , Settings(settings)
+        , OidcSession(settings)
         {}
 
     virtual void RequestSessionToken(const TString&, const NActors::TActorContext&) = 0;
@@ -146,10 +148,14 @@ public:
         NHttp::THeaders headers(Request->Headers);
         NHttp::TCookies cookies(headers.Get("cookie"));
 
-        if (IsStateValid(state, cookies, ctx) && !code.Empty()) {
+        if (OidcSession.Check(state, cookies).empty()/*IsStateValid(state, cookies, ctx)*/ && !code.Empty()) {
             RequestSessionToken(code, ctx);
         } else {
-            NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr(Request, Settings, ResponseHeaders, IsAjaxRequest);
+            NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings, IsAjaxRequest),
+                                                                                 .IncomingRequest = Request,
+                                                                                 .Settings = Settings,
+                                                                                 .ResponseHeaders = ResponseHeaders,
+                                                                                 .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);
             ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(response));
             TBase::Die(ctx);
             return;

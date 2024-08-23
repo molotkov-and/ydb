@@ -1,5 +1,6 @@
 generic:
   mlock: false
+  access_service_type: "yandex_v2"
 
   logging:
     stderr: false
@@ -19,7 +20,12 @@ oidc:
   session_service_endpoint: "grpcs://ss.private-api.cloud-preprod.yandex.net:8655"
   session_service_token_name: "ss-token"
   authorization_server_address: "https://auth-preprod.cloud.yandex.ru"
-  access_service_type: "yandex_v2"
   allowed_proxy_hosts:
     - "*.yandex.net"
     - "*.yandex-team.ru"
+
+  store_sessions_on_server_side:
+    enable: true
+    endpoint: grpc://meta.db.endpoint.net:2135
+    database: /oidc_proxy/meta
+    db_access_token_name: "oidc-meta-token"
