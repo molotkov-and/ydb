@@ -11,6 +11,13 @@
 #include <library/cpp/string_utils/base64/base64.h>
 
 struct TOpenIdConnectSettings {
+    struct TStoreSessionsOnServerSideSettings {
+        bool Enable = false;
+        TString Endpoint;
+        TString Database;
+        TString AccessTokenName;
+    };
+
     static const inline TString YDB_OIDC_COOKIE = "ydb_oidc_cookie";
     static const inline TString SESSION_COOKIE = "session_cookie";
 
@@ -25,6 +32,7 @@ struct TOpenIdConnectSettings {
     TString AuthorizationServerAddress;
     TString ClientSecret;
     std::vector<TString> AllowedProxyHosts;
+    TStoreSessionsOnServerSideSettings StoreSessionsOnServerSideSetting;
 
     NMvp::EAccessServiceType AccessServiceType = NMvp::yandex_v2;
     TString AuthUrlPath = DEFAULT_AUTH_URL_PATH;

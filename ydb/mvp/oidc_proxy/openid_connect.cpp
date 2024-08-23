@@ -116,6 +116,10 @@ TString GenerateCookie(TStringBuf state, TStringBuf redirectUrl, const TString& 
     return Base64Encode(cookieStruct);
 }
 
+void SaveCurrentSession() {
+
+}
+
 NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(TStringBuf eventDetails, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, NHttp::THeadersBuilder& responseHeaders, bool isAjaxRequest) {
     TString state = GenerateState();
     const TString redirectUrl = CreateRedirectUrl({.SessionServerCheckDetails = eventDetails,
@@ -126,11 +130,20 @@ NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(TStringBuf eventDetai
                                                     .Host = request->Host,
                                                     .AccessServiceType = settings.AccessServiceType,
                                                     .AuthUrlPath = settings.AuthUrlPath});
-    const size_t cookieMaxAgeSec = 420;
-    TStringBuilder setCookieBuilder;
-    setCookieBuilder << CreateNameYdbOidcCookie(settings.ClientSecret, state) << "=" << GenerateCookie(state, GetRequestedUrl(request, isAjaxRequest), settings.ClientSecret, isAjaxRequest)
-                     << "; Path=" << GetAuthCallbackUrl() << "; Max-Age=" << cookieMaxAgeSec <<"; SameSite=None; Secure";
-    responseHeaders.Set("Set-Cookie", setCookieBuilder);
+
+    auto getResponse = [&responseHeaders, &redirectUrl] () {
+
+    };
+
+    if (settings.StoreSessionsOnServerSideSetting.Enable) {
+        SaveCurrentSession();
+    } else {
+        const size_t cookieMaxAgeSec = 420;
+        TStringBuilder setCookieBuilder;
+        setCookieBuilder << CreateNameYdbOidcCookie(settings.ClientSecret, state) << "=" << GenerateCookie(state, GetRequestedUrl(request, isAjaxRequest), settings.ClientSecret, isAjaxRequest)
+                        << "; Path=" << GetAuthCallbackUrl() << "; Max-Age=" << cookieMaxAgeSec <<"; SameSite=None; Secure";
+        responseHeaders.Set("Set-Cookie", setCookieBuilder);
+    }
     if (isAjaxRequest) {
         return CreateResponseForAjaxRequest(request, responseHeaders, redirectUrl);
     }

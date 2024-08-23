@@ -23,3 +23,9 @@ oidc:
   allowed_proxy_hosts:
     - "*.yandex.net"
     - "*.yandex-team.ru"
+
+  store_sessions_on_server_side:
+    enable: true
+    endpoint: grpc://meta.db.endpoint.net:2135
+    database: /oidc_proxy/meta
+    db_access_token_name: "oidc-meta-token"
