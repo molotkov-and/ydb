@@ -2,18 +2,22 @@
 #include "oidc_protected_page_handler.h"
 #include "oidc_session_create_handler.h"
 
+namespace NOIDC {
+
 void InitOIDC(NActors::TActorSystem& actorSystem,
               const NActors::TActorId& httpProxyId,
-              const TOpenIdConnectSettings& settings) {
+              const NOIDC::TOpenIdConnectSettings& settings) {
     actorSystem.Send(httpProxyId, new NHttp::TEvHttpProxy::TEvRegisterHandler(
                          "/auth/callback",
-                         actorSystem.Register(new NMVP::TSessionCreateHandler(httpProxyId, settings))
+                         actorSystem.Register(new NOIDC::TSessionCreateHandler(httpProxyId, settings))
                          )
                      );
 
     actorSystem.Send(httpProxyId, new NHttp::TEvHttpProxy::TEvRegisterHandler(
                         "/",
-                        actorSystem.Register(new NMVP::TProtectedPageHandler(httpProxyId, settings))
+                        actorSystem.Register(new NOIDC::TProtectedPageHandler(httpProxyId, settings))
                         )
                     );
 }
+
+} // NOIDC

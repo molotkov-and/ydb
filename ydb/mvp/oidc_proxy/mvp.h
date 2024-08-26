@@ -56,7 +56,7 @@ protected:
 
     TString YdbUserToken;
     static NMvp::TTokensConfig TokensConfig;
-    static TOpenIdConnectSettings OpenIdConnectSettings;
+    static NOIDC::TOpenIdConnectSettings OpenIdConnectSettings;
 
 public:
     static ui16 HttpPort;

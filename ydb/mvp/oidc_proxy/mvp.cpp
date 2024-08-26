@@ -103,7 +103,7 @@ int TMVP::Init() {
         ActorSystem.Send(HttpProxyId, ev);
     }
 
-    InitOIDC(ActorSystem, BaseHttpProxyId, OpenIdConnectSettings);
+    NOIDC::InitOIDC(ActorSystem, BaseHttpProxyId, OpenIdConnectSettings);
 
     ActorSystem.Send(HttpProxyId, new NHttp::TEvHttpProxy::TEvRegisterHandler(
                          "/ping",
@@ -187,7 +187,7 @@ TString TMVP::GetAppropriateEndpoint(const NHttp::THttpIncomingRequestPtr& req) 
 }
 
 NMvp::TTokensConfig TMVP::TokensConfig;
-TOpenIdConnectSettings TMVP::OpenIdConnectSettings;
+NOIDC::TOpenIdConnectSettings TMVP::OpenIdConnectSettings;
 
 TMVP::TMVP(int argc, char** argv)
     : ActorSystemStoppingLock()

@@ -6,6 +6,7 @@
 #include <openssl/sha.h>
 #include "openid_connect.h"
 
+namespace NOIDC {
 namespace {
 
 // TString GenerateState() {
@@ -114,7 +115,7 @@ NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const TRequestAuthori
                                                     .AccessServiceType = settings.AccessServiceType,
                                                     .AuthUrlPath = settings.AuthUrlPath});
 
-    NHttp::THeadersBuilder responseHeaders(initializer.ResponseHeaders);
+    NHttp::THeadersBuilder responseHeaders;
     if (initializer.NeedStoreSessionOnClientSide) {
         responseHeaders.Set("Set-Cookie", initializer.OidcSession.CreateOidcSessionCookie());
     }
@@ -162,3 +163,5 @@ TString CreateSecureCookie(const TString& key, const TString& value) {
             << "; Path=/; Secure; HttpOnly; SameSite=None; Partitioned";
     return cookieBuilder;
 }
+
+} // NOIDC

@@ -11,6 +11,8 @@
 #include <library/cpp/string_utils/base64/base64.h>
 #include "oidc_session.h"
 
+namespace NOIDC {
+
 struct TOpenIdConnectSettings {
     struct TStoreSessionsOnServerSideSettings {
         bool Enable = false;
@@ -61,7 +63,6 @@ struct TRequestAuthorizationCodeInitializer {
     NOIDC::TOidcSession OidcSession;
     NHttp::THttpIncomingRequestPtr IncomingRequest;
     TOpenIdConnectSettings Settings;
-    NHttp::THeadersBuilder ResponseHeaders;
     bool NeedStoreSessionOnClientSide = true;
 };
 
@@ -176,3 +177,5 @@ struct TEvPrivate {
         {}
     };
 };
+
+} // NOIDC

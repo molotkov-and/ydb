@@ -3,7 +3,7 @@
 #include <ydb/library/actors/core/actor.h>
 #include "openid_connect.h"
 
-namespace NMVP {
+namespace NOIDC {
 
 class TProtectedPageHandler : public NActors::TActor<TProtectedPageHandler> {
     using TBase = NActors::TActor<TProtectedPageHandler>;
@@ -22,4 +22,4 @@ public:
     }
 };
 
-}  // NMVP
+}  // NOIDC
