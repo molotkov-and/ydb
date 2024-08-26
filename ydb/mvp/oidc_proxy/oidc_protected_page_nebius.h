@@ -112,7 +112,7 @@ private:
 
     void RequestAuthorizationCode(const NActors::TActorContext& ctx) {
         LOG_DEBUG_S(ctx, EService::MVP, "Request authorization code");
-        NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr(TStringBuf(), Request, Settings, IsAjaxRequest);
+        NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr(Request, Settings, IsAjaxRequest);
         ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
         Die(ctx);
     }
