@@ -3,7 +3,7 @@
 #include <ydb/library/actors/core/actor.h>
 #include "openid_connect.h"
 
-namespace NMVP {
+namespace NOIDC {
 
 class TSessionCreateHandler : public NActors::TActor<TSessionCreateHandler> {
     using TBase = NActors::TActor<TSessionCreateHandler>;
@@ -22,4 +22,4 @@ public:
     }
 };
 
-}  // NMVP
+}  // NOIDC

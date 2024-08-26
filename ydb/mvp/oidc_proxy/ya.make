@@ -9,7 +9,13 @@ SRCS(
     oidc_client.cpp
     openid_connect.cpp
     oidc_session.cpp
+    oidc_protected_page.cpp
+    oidc_protected_page_yandex.cpp
+    oidc_protected_page_nebius.cpp
     oidc_protected_page_handler.cpp
+    oidc_session_create.cpp
+    oidc_session_create_yandex.cpp
+    oidc_session_create_nebius.cpp
     oidc_session_create_handler.cpp
 )
 

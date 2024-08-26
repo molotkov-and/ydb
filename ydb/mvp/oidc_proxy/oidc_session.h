@@ -4,8 +4,9 @@
 #include <functional>
 #include <ydb/library/actors/http/http.h>
 
-struct TOpenIdConnectSettings;
 namespace NOIDC {
+
+struct TOpenIdConnectSettings;
 
 class TOidcSession {
 private:
@@ -20,12 +21,14 @@ private:
 public:
     TOidcSession(const TOpenIdConnectSettings& settings);
     TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest);
+    TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest);
     void SaveSessionOnServerSide(std::function<void()> cb) const;
     TString CreateOidcSessionCookie() const;
     TString Check(const TString& state, const NHttp::TCookies& cookies);
 
     TString GetState() const;
     bool GetIsAjaxRequest() const;
+    TString GetRedirectUrl() const;
 
     static TString CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state);
 

@@ -33,6 +33,13 @@ TOidcSession::TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const 
     , OidcClientSecret(settings.ClientSecret)
 {}
 
+TOidcSession::TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest)
+    : State(state)
+    , RedirectUrl(GetRedirectUrl(request, isAjaxRequest))
+    , IsAjaxRequest(isAjaxRequest)
+    , OidcClientSecret(settings.ClientSecret)
+{}
+
 TString TOidcSession::CreateOidcSessionCookie() const {
     return TStringBuilder() << CreateNameYdbOidcCookie(OidcClientSecret, State)
                             << "=" << GenerateCookie()
@@ -49,6 +56,10 @@ TString TOidcSession::GetState() const {
 
 bool TOidcSession::GetIsAjaxRequest() const {
     return IsAjaxRequest;
+}
+
+TString TOidcSession::GetRedirectUrl() const {
+    return RedirectUrl;
 }
 
 TString TOidcSession::CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state) {
@@ -92,7 +103,6 @@ TString TOidcSession::Check(const TString& state, const NHttp::TCookies& cookies
     if (!cookies.Has(cookieName)) {
         return TStringBuilder() << "Check state: Cannot find cookie " << cookieName;
     }
-    // RemoveAppliedCookie(cookieName);
     TString cookieStruct = Base64Decode(cookies.Get(cookieName));
     TString stateStruct;
     TString expectedDigest;
@@ -117,7 +127,6 @@ TString TOidcSession::Check(const TString& state, const NHttp::TCookies& cookies
     if (expectedDigest != digest) {
         return "Check state: Calculated digest is not equal expected digest";
     }
-    // TString expectedState;
     if (NJson::ReadJsonTree(stateStruct, &jsonConfig, &jsonValue)) {
         const NJson::TJsonValue* jsonState = nullptr;
         if (jsonValue.GetValuePointer("state", &jsonState)) {
