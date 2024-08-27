@@ -3,6 +3,7 @@
 #include <util/generic/string.h>
 #include <functional>
 #include <ydb/library/actors/http/http.h>
+#include <ydb/mvp/core/core_ydb.h>
 
 namespace NOIDC {
 
@@ -17,12 +18,14 @@ private:
     TString RedirectUrl;
     bool IsAjaxRequest = false;
     TString OidcClientSecret;
+    TYdbLocation MetaLocation;
+    TString MetaAccessTokenName;
 
 public:
     TOidcSession(const TOpenIdConnectSettings& settings);
     TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest);
     TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest);
-    void SaveSessionOnServerSide(std::function<void()> cb) const;
+    void SaveSessionOnServerSide(std::function<void(const TString& error)> cb) const;
     TString CreateOidcSessionCookie() const;
     TString Check(const TString& state, const NHttp::TCookies& cookies);
 

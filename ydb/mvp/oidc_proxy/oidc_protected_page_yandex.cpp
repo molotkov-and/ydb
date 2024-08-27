@@ -38,7 +38,7 @@ void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvRequestAuthorizati
     NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = event->Get()->Session,
                                                                                 .IncomingRequest = Request,
                                                                                 .Settings = Settings,
-                                                                                .NeedStoreSessionOnClientSide = true});
+                                                                                .NeedStoreSessionOnClientSide = event->Get()->NeedStoreSessionOnClient});
     ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
     Die(ctx);
 }
@@ -89,8 +89,13 @@ bool THandlerSessionServiceCheckYandex::NeedSendSecureHttpRequest(const NHttp::T
 
 void THandlerSessionServiceCheckYandex::SaveSession(const NOIDC::TOidcSession& oidcSession, const NActors::TActorContext& ctx) const {
     if (Settings.StoreSessionsOnServerSideSetting.Enable) {
-        oidcSession.SaveSessionOnServerSide([oidcSession, &ctx] () {
-            ctx.Send(ctx.SelfID, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
+        NActors::TActorSystem* actorSystem = ctx.ActorSystem();
+        NActors::TActorId actorId = ctx.SelfID;
+        oidcSession.SaveSessionOnServerSide([oidcSession, actorId, actorSystem] (const TString& error) {
+            if (!error.empty()) {
+                LOG_DEBUG_S(*actorSystem, NMVP::EService::MVP, error);
+            }
+            actorSystem->Send(actorId, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession, false));
         });
     } else {
         ctx.Send(ctx.SelfID, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
