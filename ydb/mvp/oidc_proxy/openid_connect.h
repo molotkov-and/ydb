@@ -171,9 +171,11 @@ struct TEvPrivate {
 
     struct TEvRequestAuthorizationCode : NActors::TEventLocal<TEvRequestAuthorizationCode, EvRequestAuthorizationCode> {
         NOIDC::TOidcSession Session;
+        bool NeedStoreSessionOnClient = true;
 
-        TEvRequestAuthorizationCode(const NOIDC::TOidcSession& session)
+        TEvRequestAuthorizationCode(const NOIDC::TOidcSession& session, bool needStoreSessionOnClient = true)
         : Session(session)
+        , NeedStoreSessionOnClient(needStoreSessionOnClient)
         {}
     };
 };
