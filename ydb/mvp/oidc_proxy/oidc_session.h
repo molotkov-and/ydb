@@ -12,6 +12,7 @@ struct TOpenIdConnectSettings;
 class TOidcSession {
 private:
     static constexpr size_t COOKIE_MAX_AGE_SEC = 420;
+    static const TDuration STATE_LIFE_TIME;
     // static const TString YDB_OIDC_COOKIE = "ydb_oidc_cookie";
 
     TString State;

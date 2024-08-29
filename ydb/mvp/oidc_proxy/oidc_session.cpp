@@ -27,6 +27,8 @@ TString HmacSHA256(TStringBuf key, TStringBuf data) {
 
 } // namespace
 
+const TDuration TOidcSession::STATE_LIFE_TIME = TDuration::Minutes(10);
+
 TOidcSession::TOidcSession(const TOpenIdConnectSettings& settings)
     : OidcClientSecret(settings.ClientSecret)
     , MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
@@ -62,15 +64,22 @@ void TOidcSession::SaveSessionOnServerSide(std::function<void(const TString& err
     clientTableSettings.Database(MetaLocation.RootDomain)
                        .AuthToken(MVPAppData()->Tokenator->GetToken(MetaAccessTokenName));
     auto tableClient = MetaLocation.GetTableClient(clientTableSettings);
-    tableClient.CreateSession().Subscribe([cb = std::move(cb)] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
+    tableClient.CreateSession().Subscribe([state = State, redirectUrl = RedirectUrl, isAjaxRequest = IsAjaxRequest, cb = std::move(cb)] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
         auto resultCopy = result;
         auto res = resultCopy.ExtractValue();
         if (res.IsSuccess()) {
             auto session = res.GetSession();
             TStringBuilder query;
-            query << "SELECT * FROM `ydb/oidcSessions.db`;\n";
+            query << "DECLARE $STATE AS Text;\n"
+                     "DECLARE $REDIRECT_URL AS Text;\n"
+                     "DECLARE $IS_AJAX_REQUEST AS Bool;\n";
+            query << "INSERT INTO `ydb/OidcSessions` (state, redirect_url, expiration_time, is_ajax_request)\n";
+            query << "VALUES ($STATE, $REDIRECT_URL, CurrentUtcDateTime() + Interval('PT" << STATE_LIFE_TIME.Seconds() << "S'), $IS_AJAX_REQUEST);\n";
             auto txControl = NYdb::NTable::TTxControl::BeginTx(NYdb::NTable::TTxSettings::SerializableRW()).CommitTx();
             NYdb::TParamsBuilder params;
+            params.AddParam("$STATE", NYdb::TValueBuilder().Utf8(state).Build());
+            params.AddParam("$REDIRECT_URL", NYdb::TValueBuilder().Utf8(redirectUrl).Build());
+            params.AddParam("$IS_AJAX_REQUEST", NYdb::TValueBuilder().Bool(isAjaxRequest).Build());
             auto executeDataQueryResult = session.ExecuteDataQuery(query, txControl, params.Build());
             executeDataQueryResult.Subscribe([cb = std::move(cb), session] (const NYdb::NTable::TAsyncDataQueryResult& result) mutable {
                 NYdb::NTable::TAsyncDataQueryResult resultCopy = result;
@@ -108,8 +117,7 @@ TString TOidcSession::CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state) 
 }
 
 TString TOidcSession::GenerateCookie() const {
-    static const TDuration StateLifeTime = TDuration::Minutes(10);
-    TInstant expirationTime = TInstant::Now() + StateLifeTime;
+    TInstant expirationTime = TInstant::Now() + STATE_LIFE_TIME;
     TStringBuilder stateStruct;
     stateStruct << "{\"state\":\"" << State
                 << "\",\"redirect_url\":\"" << RedirectUrl
