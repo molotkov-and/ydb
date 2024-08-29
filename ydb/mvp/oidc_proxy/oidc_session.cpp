@@ -53,7 +53,8 @@ TString TOidcSession::CreateOidcSessionCookie(const TString& secret) const {
 void TOidcSession::SaveSessionOnServerSide(std::function<void(const NYdb::TStatus& status, const TString& error)> cb) const {
     NYdb::NTable::TClientSettings clientTableSettings;
     clientTableSettings.Database(MetaLocation.RootDomain)
-                       .AuthToken(MVPAppData()->Tokenator->GetToken(MetaAccessTokenName));
+    .AuthToken("OAuth ");
+                       //.AuthToken(MVPAppData()->Tokenator->GetToken(MetaAccessTokenName));
     auto tableClient = MetaLocation.GetTableClient(clientTableSettings);
     tableClient.CreateSession().Subscribe([state = State, redirectUrl = RedirectUrl, isAjaxRequest = IsAjaxRequest, cb = std::move(cb)] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
         auto resultCopy = result;

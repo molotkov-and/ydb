@@ -237,6 +237,7 @@ void TMVP::TryGetOidcOptionsFromConfig(const YAML::Node& config) {
         Cout << host << " added to allowed_proxy_hosts" << Endl;
         OpenIdConnectSettings.AllowedProxyHosts.push_back(TString(host));
     }
+    Cout << "Finished processing allowed_proxy_hosts." << Endl;
 
     YAML::Node storeSessionsOnServerSide = oidc["store_sessions_on_server_side"];
     if (storeSessionsOnServerSide) {
@@ -247,8 +248,7 @@ void TMVP::TryGetOidcOptionsFromConfig(const YAML::Node& config) {
         storeSessionsOnServerSideSettings.Database = storeSessionsOnServerSide["database"].as<std::string>("");
         storeSessionsOnServerSideSettings.AccessTokenName = storeSessionsOnServerSide["db_access_token_name"].as<std::string>("");
     }
-
-    Cout << "Finished processing allowed_proxy_hosts." << Endl;
+    Cout << "Finished processing store_sessions_on_server_side..." << Endl;
 }
 
 void TMVP::TryGetGenericOptionsFromConfig(

@@ -288,6 +288,7 @@ struct TYdbLocation {
         if (scheme == "grpcs") {
             config.UseSecureConnection(CaCertificate);
         }
+        Cerr << "+++++: " << endp << Endl;
         config.SetEndpoint(endp);
         return config;
     }

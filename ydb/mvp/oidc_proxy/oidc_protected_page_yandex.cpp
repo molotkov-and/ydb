@@ -55,6 +55,12 @@ void THandlerSessionServiceCheckYandex::StartOidcProcess(const NActors::TActorCo
 
     std::unique_ptr<NYdbGrpc::TServiceConnection<TSessionService>> connection = CreateGRpcServiceConnection<TSessionService>(Settings.SessionServiceEndpoint);
 
+    {
+        NYdbGrpc::TGrpcStatus status(grpc::StatusCode::INVALID_ARGUMENT, "invalid argument");
+        ctx.Send(ctx.SelfID, new TEvPrivate::TEvErrorResponse(status));
+        return;
+    }
+
     NActors::TActorSystem* actorSystem = ctx.ActorSystem();
     NActors::TActorId actorId = ctx.SelfID;
     NYdbGrpc::TResponseCallback<yandex::cloud::priv::oauth::v1::CheckSessionResponse> responseCb =
