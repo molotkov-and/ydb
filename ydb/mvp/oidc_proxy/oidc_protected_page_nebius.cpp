@@ -91,7 +91,7 @@ void THandlerSessionServiceCheckNebius::ExchangeSessionToken(const TString sessi
 
 void THandlerSessionServiceCheckNebius::RequestAuthorizationCode(const NActors::TActorContext& ctx) {
     LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Request authorization code");
-    NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings, IsAjaxRequest),
+    NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings),
                                                                                 .IncomingRequest = Request,
                                                                                 .Settings = Settings,
                                                                                 .NeedStoreSessionOnClientSide = true}/*Request, Settings, IsAjaxRequest*/);

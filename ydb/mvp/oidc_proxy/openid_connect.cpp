@@ -9,15 +9,6 @@
 namespace NOIDC {
 namespace {
 
-// TString GenerateState() {
-//     TStringBuilder sb;
-//     const size_t CHAR_NUMBER = 15;
-//     for (size_t i{0}; i < CHAR_NUMBER; i++) {
-//         sb << RandomNumber<char>();
-//     }
-//     return Base64EncodeUrlNoPadding(sb);
-// }
-
 struct TRedirectUrlParameters {
     TOpenIdConnectSettings OidcSettings;
     TStringBuf CallbackUrl;
@@ -57,25 +48,38 @@ NHttp::THttpOutgoingResponsePtr CreateResponseForAjaxRequest(const NHttp::THttpI
     return request->CreateResponse("401", "Unauthorized", headers, body);
 }
 
-// TStringBuf GetRequestedUrl(const NHttp::THttpIncomingRequestPtr& request, bool isAjaxRequest) {
-//     NHttp::THeaders headers(request->Headers);
-//     TStringBuf requestedUrl = headers.Get("Referer");
-//     if (!isAjaxRequest || requestedUrl.empty()) {
-//         return request->URL;
-//     }
-//     return requestedUrl;
-// }
-
 } // namespace
 
-// TString HmacSHA256(TStringBuf key, TStringBuf data) {
-//     unsigned char hash[SHA256_DIGEST_LENGTH];
-//     ui32 hl = SHA256_DIGEST_LENGTH;
-//     const auto* res = HMAC(EVP_sha256(), key.data(), key.size(), reinterpret_cast<const unsigned char*>(data.data()), data.size(), hash, &hl);
-//     Y_ENSURE(res);
-//     Y_ENSURE(hl == SHA256_DIGEST_LENGTH);
-//     return TString{reinterpret_cast<const char*>(res), hl};
-// }
+TRestoreOidcSessionResult::TRestoreOidcSessionResult(const TOidcSession& session)
+    : Session(session)
+    , Status(EStatus::SUCCESS)
+    , ErrorMessage("")
+{}
+
+TRestoreOidcSessionResult::TRestoreOidcSessionResult(const TOidcSession& session, const EStatus& status, const TString& errorMessage)
+    : Session(session)
+    , Status(status)
+    , ErrorMessage(errorMessage)
+{}
+
+TRestoreOidcSessionResult::TRestoreOidcSessionResult(const EStatus& status, const TString& errorMessage)
+    : Session()
+    , Status(status)
+    , ErrorMessage(errorMessage)
+{}
+
+bool TRestoreOidcSessionResult::IsSuccess() const {
+    return Status == EStatus::SUCCESS;
+}
+
+TString HmacSHA256(TStringBuf key, TStringBuf data) {
+    unsigned char hash[SHA256_DIGEST_LENGTH];
+    ui32 hl = SHA256_DIGEST_LENGTH;
+    const auto* res = HMAC(EVP_sha256(), key.data(), key.size(), reinterpret_cast<const unsigned char*>(data.data()), data.size(), hash, &hl);
+    Y_ENSURE(res);
+    Y_ENSURE(hl == SHA256_DIGEST_LENGTH);
+    return TString{reinterpret_cast<const char*>(res), hl};
+}
 
 void SetHeader(NYdbGrpc::TCallMeta& meta, const TString& name, const TString& value) {
     for (auto& [exname, exvalue] : meta.Aux) {
@@ -86,23 +90,6 @@ void SetHeader(NYdbGrpc::TCallMeta& meta, const TString& name, const TString& va
     }
     meta.Aux.emplace_back(name, value);
 }
-
-// TString GenerateCookie(TStringBuf state, TStringBuf redirectUrl, const TString& secret, bool isAjaxRequest) {
-//     const TDuration StateLifeTime = TDuration::Minutes(10);
-//     TInstant expirationTime = TInstant::Now() + StateLifeTime;
-//     TStringBuilder stateStruct;
-//     stateStruct << "{\"state\":\"" << state
-//                 << "\",\"redirect_url\":\"" << redirectUrl
-//                 << "\",\"expiration_time\":" << ToString(expirationTime.TimeT())
-//                 << ",\"ajax_request\":" << (isAjaxRequest ? "true" : "false") << "}";
-//     TString digest = HmacSHA256(secret, stateStruct);
-//     TString cookieStruct {"{\"state_struct\":\"" + Base64Encode(stateStruct) + "\",\"digest\":\"" + Base64Encode(digest) + "\"}"};
-//     return Base64Encode(cookieStruct);
-// }
-
-// void SaveCurrentSession() {
-
-// }
 
 NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const TRequestAuthorizationCodeInitializer& initializer) {
     const auto& settings = initializer.Settings;
@@ -117,7 +104,7 @@ NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const TRequestAuthori
 
     NHttp::THeadersBuilder responseHeaders;
     if (initializer.NeedStoreSessionOnClientSide) {
-        responseHeaders.Set("Set-Cookie", initializer.OidcSession.CreateOidcSessionCookie());
+        responseHeaders.Set("Set-Cookie", initializer.OidcSession.CreateOidcSessionCookie(settings.ClientSecret));
     }
     if (initializer.OidcSession.GetIsAjaxRequest()) {
         return CreateResponseForAjaxRequest(request, responseHeaders, redirectUrl);
@@ -125,28 +112,6 @@ NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const TRequestAuthori
     responseHeaders.Set("Location", redirectUrl);
     return request->CreateResponse("302", "Authorization required", responseHeaders);
 }
-
-// NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const NOIDC::TOidcSession& oidcSession, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest) {
-//     NHttp::THeadersBuilder responseHeaders;
-//     return GetHttpOutgoingResponsePtr(oidcSession, request, settings, responseHeaders, isAjaxRequest);
-// }
-
-bool DetectAjaxRequest(const NHttp::THeaders& headers) {
-    const static THashMap<TStringBuf, TStringBuf> expectedHeaders {
-        {"Accept", "application/json"}
-    };
-    for (const auto& el : expectedHeaders) {
-        TStringBuf headerValue = headers.Get(el.first);
-        if (!headerValue || headerValue.find(el.second) == TStringBuf::npos) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// TString CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state) {
-//     return TOpenIdConnectSettings::YDB_OIDC_COOKIE + "_" + HexEncode(HmacSHA256(key, state));
-// }
 
 TString CreateNameSessionCookie(TStringBuf key) {
     return "__Host_" + TOpenIdConnectSettings::SESSION_COOKIE + "_" + HexEncode(key);
@@ -162,6 +127,75 @@ TString CreateSecureCookie(const TString& key, const TString& value) {
     cookieBuilder << CreateNameSessionCookie(key) << "=" << Base64Encode(value)
             << "; Path=/; Secure; HttpOnly; SameSite=None; Partitioned";
     return cookieBuilder;
+}
+
+TRestoreOidcSessionResult RestoreSessionStoredOnClientSide(const TString& state, const NHttp::TCookies& cookies, const TString& secret) {
+    TStringBuilder errorMessage;
+    errorMessage << "Restore session: ";
+    const TString cookieName {TOidcSession::CreateNameYdbOidcCookie(secret, state)};
+    if (!cookies.Has(cookieName)) {
+        return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::UNKNOWN_COOKIE, errorMessage << "Cannot find cookie " << cookieName);
+    }
+    TString cookieStruct = Base64Decode(cookies.Get(cookieName));
+    TString stateStruct;
+    TString expectedDigest;
+    NJson::TJsonValue jsonValue;
+    NJson::TJsonReaderConfig jsonConfig;
+    if (NJson::ReadJsonTree(cookieStruct, &jsonConfig, &jsonValue)) {
+        const NJson::TJsonValue* jsonStateStruct = nullptr;
+        if (jsonValue.GetValuePointer("state_struct", &jsonStateStruct)) {
+            stateStruct = jsonStateStruct->GetStringRobust();
+            stateStruct = Base64Decode(stateStruct);
+        }
+        const NJson::TJsonValue* jsonDigest = nullptr;
+        if (jsonValue.GetValuePointer("digest", &jsonDigest)) {
+            expectedDigest = jsonDigest->GetStringRobust();
+            expectedDigest = Base64Decode(expectedDigest);
+        }
+    }
+    if (stateStruct.Empty() || expectedDigest.Empty()) {
+        return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::WRONG_COOKIE, errorMessage << "Struct with state and expected digest are empty");
+    }
+    TString digest = HmacSHA256(secret, stateStruct);
+    if (expectedDigest != digest) {
+        return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::WRONG_COOKIE, errorMessage << "Calculated digest is not equal expected digest");
+    }
+    TString expectedState;
+    TString redirectUrl;
+    bool isAjaxRequest = false;
+    if (NJson::ReadJsonTree(stateStruct, &jsonConfig, &jsonValue)) {
+        const NJson::TJsonValue* jsonState = nullptr;
+        if (jsonValue.GetValuePointer("state", &jsonState)) {
+            expectedState = jsonState->GetStringRobust();
+        }
+        const NJson::TJsonValue* jsonRedirectUrl = nullptr;
+        if (jsonValue.GetValuePointer("redirect_url", &jsonRedirectUrl)) {
+            redirectUrl = jsonRedirectUrl->GetStringRobust();
+        } else {
+            return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::UNKNOWN_REDIRECT_URL, errorMessage << "Redirect url not found in cookie");
+        }
+        const NJson::TJsonValue* jsonExpirationTime = nullptr;
+        if (jsonValue.GetValuePointer("expiration_time", &jsonExpirationTime)) {
+            timeval timeVal {
+                .tv_sec = jsonExpirationTime->GetIntegerRobust()
+            };
+            if (TInstant::Now() > TInstant(timeVal)) {
+                return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl), TRestoreOidcSessionResult::EStatus::EXPIRED_STATE, errorMessage << "State life time expired");
+            }
+        } else {
+            return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl), TRestoreOidcSessionResult::EStatus::EXPIRED_STATE, errorMessage << "Expiration time not found in json");
+        }
+        const NJson::TJsonValue* jsonAjaxRequest = nullptr;
+        if (jsonValue.GetValuePointer("ajax_request", &jsonAjaxRequest)) {
+            isAjaxRequest = jsonAjaxRequest->GetBooleanRobust();
+        } else {
+            return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl), TRestoreOidcSessionResult::EStatus::UNKNOWN_AJAX_REQUEST, errorMessage << "Can not detect ajax request");
+        }
+    }
+    if (expectedState.Empty() || expectedState != state) {
+        return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl, isAjaxRequest), TRestoreOidcSessionResult::EStatus::UNKNOWN_STATE, errorMessage << "Unknown state");
+    }
+    return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl, isAjaxRequest));
 }
 
 } // NOIDC

@@ -21,12 +21,17 @@ void THandlerSessionCreate::Bootstrap(const NActors::TActorContext& ctx) {
     NHttp::THeaders headers(Request->Headers);
     NHttp::TCookies cookies(headers.Get("cookie"));
 
-    TString error = OidcSession.Check(state, cookies);
-    // Cerr << "+++ Check state: " << error << Endl;
-    if (error.empty()/*IsStateValid(state, cookies, ctx)*/ && !code.Empty()) {
+    // TString error;
+    // if (Settings.StoreSessionsOnServerSideSetting.Enable) {
+    //     error = OidcSession.CheckSessionStoredOnServerSide(state);
+    // } else {
+    //     RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
+    // }
+    TRestoreOidcSessionResult restoreSessionResult = RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
+    if (restoreSessionResult.IsSuccess()/*IsStateValid(state, cookies, ctx)*/ && !code.Empty()) {
         RequestSessionToken(code, ctx);
     } else {
-        NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings, OidcSession.GetIsAjaxRequest()),
+        NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings),
                                                                                 .IncomingRequest = Request,
                                                                                 .Settings = Settings,
                                                                                 .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);

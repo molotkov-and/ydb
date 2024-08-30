@@ -1,5 +1,9 @@
 #include "oidc_protected_page_yandex.h"
 
+namespace NYdb {
+class TStatus;
+}
+
 namespace NOIDC {
 
 THandlerSessionServiceCheckYandex::THandlerSessionServiceCheckYandex(const NActors::TActorId& sender,
@@ -25,7 +29,7 @@ void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvCheckSessionRespon
 void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvErrorResponse::TPtr event, const NActors::TActorContext& ctx) {
     LOG_DEBUG_S(ctx, NMVP::EService::MVP, "SessionService.Check(): " << event->Get()->Status);
     if (event->Get()->Status == "400") {
-        SaveSession(NOIDC::TOidcSession(Request, Settings, IsAjaxRequest), ctx);
+        SaveSession(NOIDC::TOidcSession(Request, Settings), ctx);
         // httpResponse = GetHttpOutgoingResponsePtr(event->Get()->Details, Request, Settings, IsAjaxRequest);
     } else {
         NHttp::THttpOutgoingResponsePtr httpResponse = Request->CreateResponse( event->Get()->Status, event->Get()->Message, "text/plain", event->Get()->Details);
@@ -91,11 +95,16 @@ void THandlerSessionServiceCheckYandex::SaveSession(const NOIDC::TOidcSession& o
     if (Settings.StoreSessionsOnServerSideSetting.Enable) {
         NActors::TActorSystem* actorSystem = ctx.ActorSystem();
         NActors::TActorId actorId = ctx.SelfID;
-        oidcSession.SaveSessionOnServerSide([oidcSession, actorId, actorSystem] (const TString& error) {
-            if (!error.empty()) {
+        oidcSession.SaveSessionOnServerSide([oidcSession, actorId, actorSystem] (const NYdb::TStatus& status, const TString& error) {
+            if (status.IsSuccess()) {
+                actorSystem->Send(actorId, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession, false));
+            } else {
                 LOG_DEBUG_S(*actorSystem, NMVP::EService::MVP, error);
+                // Сделать ретраи попыток сохранения сессии
+
+                // Не смогли сохранить в базу, отправляем сессию клиенту
+                actorSystem->Send(actorId, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
             }
-            actorSystem->Send(actorId, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession, false));
         });
     } else {
         ctx.Send(ctx.SelfID, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
