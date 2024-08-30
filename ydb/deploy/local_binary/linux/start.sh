@@ -1,11 +1,19 @@
 #!/usr/bin/env bash
 # set -v
-YDBD_PATH=${YDBD_PATH:-`pwd`/ydbd/bin/ydbd}
-YDBD_LIB_PATH=${YDBD_LIB_PATH:-`pwd`/ydbd/lib}
+YDBD_PATH="ydbd"
+# YDBD_LIB_PATH=${YDBD_LIB_PATH:-`pwd`/ydbd/lib}
 BASE_PATH=$(dirname -- "${BASH_SOURCE[0]}")
 CONFIG_PATH="${BASE_PATH}/config"
 LOGS_PATH="${BASE_PATH}/logs"
-export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$YDBD_LIB_PATH"
+# export LD_LIBRARY_PATH="$LD_LIBRARY_PATH:$YDBD_LIB_PATH"
+
+STORAGE_GRPC_PORT=33001
+STORAGE_IC_PORT=33002
+STORAGE_MON_PORT=33003
+
+TENANT_GRPC_PORT=33004
+TENANT_IC_PORT=33005
+TENANT_MON_PORT=33006
 
 if [[ $1 != "drive" && $1 != "disk" && $1 != "ram" ]]; then
   echo Please specify 'drive', 'disk' or 'ram' as the first parameter
@@ -60,7 +68,7 @@ else
 fi
 echo Starting storage process... takes ~10 seconds
 mkdir -p "$LOGS_PATH"
-$YDBD_PATH server --yaml-config "$CONFIG_PATH/$cfg" --node 1 \
+$YDBD_PATH server --yaml-config "$CONFIG_PATH/$cfg" --node 1 --grpc-port ${STORAGE_GRPC_PORT} --ic-port ${STORAGE_IC_PORT} --mon-port ${STORAGE_MON_PORT} \
   --log-file-name "$LOGS_PATH/storage_start.log" > "$LOGS_PATH/storage_start_output.log" 2>"$LOGS_PATH/storage_start_err.log" &
 sleep 10
 grep "$LOGS_PATH/storage_start_err.log" -v -f "$CONFIG_PATH/exclude_err.txt"
@@ -73,7 +81,7 @@ if [[ $? -eq 0 ]]; then
 fi
 if [ $need_init -eq 1 ] || [ "$cfg" = "ram.yaml" ]; then
   echo Initializing storage...
-  $YDBD_PATH -s grpc://localhost:2136 admin blobstorage config init --yaml-file "$CONFIG_PATH/$cfg" > "$LOGS_PATH/init_storage.log" 2>&1
+  $YDBD_PATH -s grpc://localhost:${STORAGE_GRPC_PORT} admin blobstorage config init --yaml-file "$CONFIG_PATH/$cfg" > "$LOGS_PATH/init_storage.log" 2>&1
   if [[ $? -ge 1 ]]; then
     echo Errors found when initializing storage, cancelling start script, check logs/init_storage.log
     if [ $need_init -eq 1 ]; then
@@ -83,13 +91,13 @@ if [ $need_init -eq 1 ] || [ "$cfg" = "ram.yaml" ]; then
   fi
 fi
 echo Registering database...
-$YDBD_PATH -s grpc://localhost:2136 admin database /Root/test create ssd:1 > "$LOGS_PATH/db_reg.log" 2>&1
+$YDBD_PATH -s grpc://localhost:${STORAGE_GRPC_PORT} admin database /Root/test create ssd:1 > "$LOGS_PATH/db_reg.log" 2>&1
 if [[ $? -ge 1 ]]; then
   echo Errors found when registering database, cancelling start script, check "$LOGS_PATH/db_reg.log"
   exit
 fi
 echo Starting database process...
-$YDBD_PATH server --yaml-config "$CONFIG_PATH/$cfg" --tenant /Root/test --node-broker localhost:2136 --grpc-port 31001 --ic-port 31003 --mon-port 31002 \
+$YDBD_PATH server --yaml-config "$CONFIG_PATH/$cfg" --tenant /Root/test --node-broker localhost:${STORAGE_GRPC_PORT} --grpc-port ${TENANT_GRPC_PORT} --ic-port ${TENANT_IC_PORT} --mon-port ${TENANT_MON_PORT} \
   --log-file-name "$LOGS_PATH/db_start.log" > "$LOGS_PATH/db_start_output.log" 2>"$LOGS_PATH/db_start_err.log" &
 sleep 3
 grep "$LOGS_PATH/db_start_err.log" -v -f "$CONFIG_PATH/exclude_err.txt"
@@ -100,5 +108,9 @@ fi
 echo "
 Database started. Connection options for YDB CLI:
 
--e grpc://localhost:2136 -d /Root/test
+-e grpc://localhost:${STORAGE_GRPC_PORT} -d /Root/test
+
+Monitoring page:
+
+http://mr-nvme-testing-000.ydb.yandex.net:${STORAGE_MON_PORT}/monitoring/cluster/tenants
 "

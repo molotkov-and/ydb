@@ -7,7 +7,7 @@ host_configs:
 hosts:
 - host: localhost
   host_config_id: 1
-  port: 19001
+  port: 33002
   walle_location:
     body: 1
     data_center: '1'
