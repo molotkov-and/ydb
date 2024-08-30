@@ -7,59 +7,50 @@
 #include <openssl/sha.h>
 #include <ydb/public/sdk/cpp/client/ydb_table/table.h>
 #include <ydb/public/sdk/cpp/client/ydb_params/params.h>
+#include <ydb/public/sdk/cpp/client/ydb_types/status/status.h>
 #include "oidc_session.h"
 #include "openid_connect.h"
 
 namespace NOIDC {
 
-// #define MLOG_D(stream) LOG_DEBUG_S((NMVP::InstanceMVP->ActorSystem), NMVP::EService::MVP, stream)
-
-namespace {
-
-TString HmacSHA256(TStringBuf key, TStringBuf data) {
-    unsigned char hash[SHA256_DIGEST_LENGTH];
-    ui32 hl = SHA256_DIGEST_LENGTH;
-    const auto* res = HMAC(EVP_sha256(), key.data(), key.size(), reinterpret_cast<const unsigned char*>(data.data()), data.size(), hash, &hl);
-    Y_ENSURE(res);
-    Y_ENSURE(hl == SHA256_DIGEST_LENGTH);
-    return TString{reinterpret_cast<const char*>(res), hl};
-}
-
-} // namespace
-
 const TDuration TOidcSession::STATE_LIFE_TIME = TDuration::Minutes(10);
 
+TOidcSession::TOidcSession(const TString& state, const TString& redirectUrl, bool isAjaxRequest)
+    : State(state)
+    , IsAjaxRequest(isAjaxRequest)
+    , RedirectUrl(redirectUrl)
+    , MetaLocation("oidc-proxy", "oidc-proxy", {}, "")
+    , MetaAccessTokenName("")
+{}
+
 TOidcSession::TOidcSession(const TOpenIdConnectSettings& settings)
-    : OidcClientSecret(settings.ClientSecret)
-    , MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
+    : MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
     , MetaAccessTokenName(settings.StoreSessionsOnServerSideSetting.AccessTokenName)
 {}
 
-TOidcSession::TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest)
+TOidcSession::TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings)
     : State(GenerateState())
-    , RedirectUrl(GetRedirectUrl(request, isAjaxRequest))
-    , IsAjaxRequest(isAjaxRequest)
-    , OidcClientSecret(settings.ClientSecret)
+    , IsAjaxRequest(DetectAjaxRequest(request))
+    , RedirectUrl(GetRedirectUrl(request, IsAjaxRequest))
     , MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
     , MetaAccessTokenName(settings.StoreSessionsOnServerSideSetting.AccessTokenName)
 {}
 
 TOidcSession::TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest)
     : State(state)
-    , RedirectUrl(GetRedirectUrl(request, isAjaxRequest))
     , IsAjaxRequest(isAjaxRequest)
-    , OidcClientSecret(settings.ClientSecret)
+    , RedirectUrl(GetRedirectUrl(request, IsAjaxRequest))
     , MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
     , MetaAccessTokenName(settings.StoreSessionsOnServerSideSetting.AccessTokenName)
 {}
 
-TString TOidcSession::CreateOidcSessionCookie() const {
-    return TStringBuilder() << CreateNameYdbOidcCookie(OidcClientSecret, State)
-                            << "=" << GenerateCookie()
+TString TOidcSession::CreateOidcSessionCookie(const TString& secret) const {
+    return TStringBuilder() << CreateNameYdbOidcCookie(secret, State)
+                            << "=" << GenerateCookie(secret)
                             << "; Path=" << GetAuthCallbackUrl() << "; Max-Age=" << COOKIE_MAX_AGE_SEC <<"; SameSite=None; Secure";
 }
 
-void TOidcSession::SaveSessionOnServerSide(std::function<void(const TString& error)> cb) const {
+void TOidcSession::SaveSessionOnServerSide(std::function<void(const NYdb::TStatus& status, const TString& error)> cb) const {
     NYdb::NTable::TClientSettings clientTableSettings;
     clientTableSettings.Database(MetaLocation.RootDomain)
                        .AuthToken(MVPAppData()->Tokenator->GetToken(MetaAccessTokenName));
@@ -85,16 +76,75 @@ void TOidcSession::SaveSessionOnServerSide(std::function<void(const TString& err
                 NYdb::NTable::TAsyncDataQueryResult resultCopy = result;
                 auto res = resultCopy.ExtractValue();
                 if (res.IsSuccess()) {
-                    cb(TStringBuilder() << "SaveSessionOnServerSide - success:\n" << (NYdb::TStatus&)res);
+                    cb(res, TStringBuilder() << "SaveSessionOnServerSide - success:\n" << (NYdb::TStatus&)res);
                 } else {
                     // no result
-                    cb(TStringBuilder() << "SaveSessionOnServerSide - failed to get result:\n" << (NYdb::TStatus&)res);
+                    cb(res, TStringBuilder() << "SaveSessionOnServerSide - failed to get result:\n" << (NYdb::TStatus&)res);
                 }
                 session.Close();
             });
         } else {
             // no session
-            cb(TStringBuilder() << "SaveSessionOnServerSide - failed to get session:\n" << (NYdb::TStatus&)res);
+            cb(res, TStringBuilder() << "SaveSessionOnServerSide - failed to get session:\n" << (NYdb::TStatus&)res);
+        }
+    });
+}
+
+void TOidcSession::CheckSessionStoredOnServerSide(const TString& state, std::function<void(const TString& redirectUrl, bool isAjaxRequest)> cb) {
+    NYdb::NTable::TClientSettings clientTableSettings;
+    clientTableSettings.Database(MetaLocation.RootDomain)
+    .AuthToken(MVPAppData()->Tokenator->GetToken(MetaAccessTokenName));
+    auto tableClient = MetaLocation.GetTableClient(clientTableSettings);
+    tableClient.CreateSession().Subscribe([state, cb = std::move(cb)] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
+        auto resultCopy = result;
+        auto res = resultCopy.ExtractValue();
+        if (res.IsSuccess()) {
+            auto session = res.GetSession();
+            TStringBuilder query;
+            query << "DECLARE $STATE AS Text;\n";
+            query << "SELECT * FROM `ydb/OidcSessions` WHERE state=$STATE AND CurrentUtcDatetime() < expire_time;\n";
+            auto txControl = NYdb::NTable::TTxControl::BeginTx(NYdb::NTable::TTxSettings::OnlineRO(NYdb::NTable::TTxOnlineSettings().AllowInconsistentReads(true))).CommitTx();
+            NYdb::TParamsBuilder params;
+            params.AddParam("$STATE", NYdb::TValueBuilder().Utf8(state).Build());
+            auto executeDataQueryResult = session.ExecuteDataQuery(query, txControl, params.Build());
+            executeDataQueryResult.Subscribe([state, cb = std::move(cb), session] (const NYdb::NTable::TAsyncDataQueryResult& result) mutable {
+                NYdb::NTable::TAsyncDataQueryResult resultCopy = result;
+                auto res = resultCopy.ExtractValue();
+                if (res.IsSuccess()) {
+                    Cerr << "CheckSessionStoredOnServerSide - success:\n" << (NYdb::TStatus&)res << Endl;
+                    try {
+                        auto resultSet = res.GetResultSet(0);
+                        NYdb::TResultSetParser rsParser(resultSet);
+                        const auto& columnsMeta = resultSet.GetColumnsMeta();
+                        if (rsParser.TryNextRow()) {
+                            // TString forward = (rsParser.ColumnParser(0).GetOptionalUtf8()).GetRef();
+                            // TInstant deadline = (rsParser.ColumnParser(1).GetOptionalTimestamp()).GetRef();
+                            TString redirectUrl;
+                            bool isAjaxRequest = false;;
+                            for (size_t columnNum = 0; columnNum < columnsMeta.size(); ++columnNum) {
+                                const NYdb::TColumn& columnMeta = columnsMeta[columnNum];
+                                if (columnMeta.Name == "redirect_url") {
+                                    redirectUrl = rsParser.ColumnParser(columnNum).GetOptionalUtf8().GetRef();
+                                }
+                                if (columnMeta.Name == "is_ajax_request") {
+                                    isAjaxRequest = rsParser.ColumnParser(columnNum).GetOptionalBool().GetRef();
+                                }
+                            }
+                            cb(redirectUrl, isAjaxRequest);
+                        } else {
+                            Cerr << "CheckSessionStoredOnServerSide - no data for " << state << Endl;
+                        }
+                    } catch (const std::exception& e) {
+                        Cerr << "CheckSessionStoredOnServerSide - failed to get result:\n" << e.what() << Endl;
+                    }
+                } else {
+                    // no result
+                    Cerr << "CheckSessionStoredOnServerSide - failed to get result:\n" << (NYdb::TStatus&)res << Endl;
+                }
+                session.Close();
+            });
+        } else {
+            Cerr << "CheckSessionStoredOnServerSide - failed to get session:\n" << (NYdb::TStatus&)res << Endl;
         }
     });
 }
@@ -116,14 +166,14 @@ TString TOidcSession::CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state) 
     return YDB_OIDC_COOKIE + "_" + HexEncode(HmacSHA256(key, state));
 }
 
-TString TOidcSession::GenerateCookie() const {
+TString TOidcSession::GenerateCookie(const TString& secret) const {
     TInstant expirationTime = TInstant::Now() + STATE_LIFE_TIME;
     TStringBuilder stateStruct;
     stateStruct << "{\"state\":\"" << State
                 << "\",\"redirect_url\":\"" << RedirectUrl
                 << "\",\"expiration_time\":" << ToString(expirationTime.TimeT())
                 << ",\"ajax_request\":" << (IsAjaxRequest ? "true" : "false") << "}";
-    TString digest = HmacSHA256(OidcClientSecret, stateStruct);
+    TString digest = HmacSHA256(secret, stateStruct);
     TString cookieStruct {"{\"state_struct\":\"" + Base64Encode(stateStruct) + "\",\"digest\":\"" + Base64Encode(digest) + "\"}"};
     return Base64Encode(cookieStruct);
 }
@@ -146,65 +196,18 @@ TStringBuf TOidcSession::GetRedirectUrl(const NHttp::THttpIncomingRequestPtr& re
     return requestedUrl;
 }
 
-TString TOidcSession::Check(const TString& state, const NHttp::TCookies& cookies) {
-    const TString cookieName {CreateNameYdbOidcCookie(OidcClientSecret, state)};
-    if (!cookies.Has(cookieName)) {
-        return TStringBuilder() << "Check state: Cannot find cookie " << cookieName;
-    }
-    TString cookieStruct = Base64Decode(cookies.Get(cookieName));
-    TString stateStruct;
-    TString expectedDigest;
-    NJson::TJsonValue jsonValue;
-    NJson::TJsonReaderConfig jsonConfig;
-    if (NJson::ReadJsonTree(cookieStruct, &jsonConfig, &jsonValue)) {
-        const NJson::TJsonValue* jsonStateStruct = nullptr;
-        if (jsonValue.GetValuePointer("state_struct", &jsonStateStruct)) {
-            stateStruct = jsonStateStruct->GetStringRobust();
-            stateStruct = Base64Decode(stateStruct);
-        }
-        const NJson::TJsonValue* jsonDigest = nullptr;
-        if (jsonValue.GetValuePointer("digest", &jsonDigest)) {
-            expectedDigest = jsonDigest->GetStringRobust();
-            expectedDigest = Base64Decode(expectedDigest);
+bool TOidcSession::DetectAjaxRequest(const NHttp::THttpIncomingRequestPtr& request) {
+    const static THashMap<TStringBuf, TStringBuf> expectedHeaders {
+        {"Accept", "application/json"}
+    };
+    NHttp::THeaders headers(request->Headers);
+    for (const auto& el : expectedHeaders) {
+        TStringBuf headerValue = headers.Get(el.first);
+        if (!headerValue || headerValue.find(el.second) == TStringBuf::npos) {
+            return false;
         }
     }
-    if (stateStruct.Empty() || expectedDigest.Empty()) {
-        return "Check state: Struct with state and expected digest are empty";
-    }
-    TString digest = HmacSHA256(OidcClientSecret, stateStruct);
-    if (expectedDigest != digest) {
-        return "Check state: Calculated digest is not equal expected digest";
-    }
-    if (NJson::ReadJsonTree(stateStruct, &jsonConfig, &jsonValue)) {
-        const NJson::TJsonValue* jsonState = nullptr;
-        if (jsonValue.GetValuePointer("state", &jsonState)) {
-            State = jsonState->GetStringRobust();
-        }
-        const NJson::TJsonValue* jsonRedirectUrl = nullptr;
-        if (jsonValue.GetValuePointer("redirect_url", &jsonRedirectUrl)) {
-            RedirectUrl = jsonRedirectUrl->GetStringRobust();
-        } else {
-            return "Check state: Redirect url not found in json";
-        }
-        const NJson::TJsonValue* jsonExpirationTime = nullptr;
-        if (jsonValue.GetValuePointer("expiration_time", &jsonExpirationTime)) {
-            timeval timeVal {
-                .tv_sec = jsonExpirationTime->GetIntegerRobust()
-            };
-            if (TInstant::Now() > TInstant(timeVal)) {
-                return "Check state: State life time expired";
-            }
-        } else {
-            return "Check state: Expiration time not found in json";
-        }
-        const NJson::TJsonValue* jsonAjaxRequest = nullptr;
-        if (jsonValue.GetValuePointer("ajax_request", &jsonAjaxRequest)) {
-            IsAjaxRequest = jsonAjaxRequest->GetBooleanRobust();
-        } else {
-            return "Check state: Can not detect ajax request";
-        }
-    }
-    return (!State.Empty() && State == state ? "" : "Unexpected state");
+    return true;
 }
 
 } // NOIDC

@@ -59,6 +59,29 @@ struct TOpenIdConnectSettings {
     }
 };
 
+struct TRestoreOidcSessionResult {
+    enum class EStatus {
+        UNKNOWN,
+        SUCCESS,
+        UNKNOWN_STATE,
+        EXPIRED_STATE,
+        UNKNOWN_COOKIE,
+        WRONG_COOKIE,
+        UNKNOWN_REDIRECT_URL,
+        UNKNOWN_AJAX_REQUEST,
+    };
+
+    TOidcSession Session;
+    EStatus Status;
+    TString ErrorMessage;
+
+    TRestoreOidcSessionResult(const TOidcSession& session);
+    TRestoreOidcSessionResult(const EStatus& status, const TString& errorMessage);
+    TRestoreOidcSessionResult(const TOidcSession& session, const EStatus& status, const TString& errorMessage);
+
+    bool IsSuccess() const;
+};
+
 struct TRequestAuthorizationCodeInitializer {
     NOIDC::TOidcSession OidcSession;
     NHttp::THttpIncomingRequestPtr IncomingRequest;
@@ -66,17 +89,14 @@ struct TRequestAuthorizationCodeInitializer {
     bool NeedStoreSessionOnClientSide = true;
 };
 
-// TString HmacSHA256(TStringBuf key, TStringBuf data);
+TRestoreOidcSessionResult RestoreSessionStoredOnClientSide(const TString& state, const NHttp::TCookies& cookies, const TString& secret);
+
+TString HmacSHA256(TStringBuf key, TStringBuf data);
 void SetHeader(NYdbGrpc::TCallMeta& meta, const TString& name, const TString& value);
 NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const TRequestAuthorizationCodeInitializer& initializer);
-// NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const NOIDC::TOidcSession& oidcSession, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest = false);
-// TString GenerateCookie(TStringBuf state, TStringBuf redirectUrl, const TString& secret, bool isAjaxRequest);
-bool DetectAjaxRequest(const NHttp::THeaders& headers);
-// TString CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state);
 TString CreateNameSessionCookie(TStringBuf key);
 const TString& GetAuthCallbackUrl();
 TString CreateSecureCookie(const TString& name, const TString& value);
-// TString CreateOidcSessionCookie();
 
 template <typename TSessionService>
 std::unique_ptr<NYdbGrpc::TServiceConnection<TSessionService>> CreateGRpcServiceConnection(const TString& endpoint) {

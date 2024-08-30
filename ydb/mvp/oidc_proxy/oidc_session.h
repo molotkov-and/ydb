@@ -5,30 +5,34 @@
 #include <ydb/library/actors/http/http.h>
 #include <ydb/mvp/core/core_ydb.h>
 
+namespace NYdb {
+class TStatus;
+}
 namespace NOIDC {
 
 struct TOpenIdConnectSettings;
+
 
 class TOidcSession {
 private:
     static constexpr size_t COOKIE_MAX_AGE_SEC = 420;
     static const TDuration STATE_LIFE_TIME;
-    // static const TString YDB_OIDC_COOKIE = "ydb_oidc_cookie";
 
     TString State;
-    TString RedirectUrl;
     bool IsAjaxRequest = false;
-    TString OidcClientSecret;
+    TString RedirectUrl;
     TYdbLocation MetaLocation;
     TString MetaAccessTokenName;
 
 public:
+    TOidcSession(const TString& state = "", const TString& redirectUrl = "", bool isAjaxRequest = false);
     TOidcSession(const TOpenIdConnectSettings& settings);
-    TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest);
+    TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings);
     TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest);
-    void SaveSessionOnServerSide(std::function<void(const TString& error)> cb) const;
-    TString CreateOidcSessionCookie() const;
-    TString Check(const TString& state, const NHttp::TCookies& cookies);
+
+    void SaveSessionOnServerSide(std::function<void(const NYdb::TStatus& status, const TString& error)> cb) const;
+    TString CreateOidcSessionCookie(const TString& secret) const;
+    void CheckSessionStoredOnServerSide(const TString& state, std::function<void(const TString& redirectUrl, bool isAjaxRequest)> cb);
 
     TString GetState() const;
     bool GetIsAjaxRequest() const;
@@ -39,8 +43,9 @@ public:
 private:
     static TString GenerateState();
     static TStringBuf GetRedirectUrl(const NHttp::THttpIncomingRequestPtr& request, bool isAjaxRequest);
+    static bool DetectAjaxRequest(const NHttp::THttpIncomingRequestPtr& request);
 
-    TString GenerateCookie() const;
+    TString GenerateCookie(const TString& secret) const;
 };
 
 } // NOIDC
