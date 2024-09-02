@@ -30,10 +30,12 @@ public:
     TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, bool isAjaxRequest);
 
     TString CreateOidcSessionCookie(const TString& secret) const;
-    void CheckSessionStoredOnServerSide(const TString& state, std::function<void(const TString& redirectUrl, bool isAjaxRequest)> cb);
 
+    void SetState(const TString& state);
     TString GetState() const;
+    void SetIsAjaxRequest(bool isAjaxRequest);
     bool GetIsAjaxRequest() const;
+    void SetRedirectUrl(const TString& redirectUrl);
     TString GetRedirectUrl() const;
 
     static TString CreateNameYdbOidcCookie(TStringBuf key, TStringBuf state);

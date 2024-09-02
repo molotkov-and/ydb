@@ -177,7 +177,8 @@ TRestoreOidcSessionResult RestoreSessionStoredOnClientSide(const TString& state,
         const NJson::TJsonValue* jsonExpirationTime = nullptr;
         if (jsonValue.GetValuePointer("expiration_time", &jsonExpirationTime)) {
             timeval timeVal {
-                .tv_sec = jsonExpirationTime->GetIntegerRobust()
+                .tv_sec = jsonExpirationTime->GetIntegerRobust(),
+                .tv_usec = 0
             };
             if (TInstant::Now() > TInstant(timeVal)) {
                 return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl), TRestoreOidcSessionResult::EStatus::EXPIRED_STATE, errorMessage << "State life time expired");

@@ -1,5 +1,6 @@
 #pragma once
 
+#include <ydb/mvp/core/core_ydb_impl.h>
 #include "oidc_session_create.h"
 #include "oidc_session.h"
 
@@ -31,6 +32,8 @@ private:
             HFunc(NHttp::TEvHttpProxy::TEvHttpIncomingResponse, Handle);
             HFunc(TEvPrivate::TEvCreateSessionResponse, HandleCreateSession);
             HFunc(TEvPrivate::TEvErrorResponse, HandleError);
+            HFunc(NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult, Handle);
+            HFunc(NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult, Handle);
         }
     }
 };

@@ -13,12 +13,15 @@
 #include <ydb/library/actors/core/log.h>
 #include <library/cpp/http/io/stream.h>
 #include <util/network/sock.h>
+#include <util/generic/maybe.h>
 #include <library/cpp/json/json_reader.h>
 #include <ydb/public/api/client/yc_private/oauth/session_service.grpc.pb.h>
 #include <ydb/mvp/core/protos/mvp.pb.h>
 #include <ydb/mvp/core/mvp_log.h>
 #include <ydb/mvp/core/mvp_tokens.h>
 #include <ydb/mvp/core/appdata.h>
+#include <ydb/mvp/core/core_ydb_impl.h>
+#include <ydb/public/sdk/cpp/client/ydb_table/table.h>
 #include "openid_connect.h"
 
 struct TYdbLocation;
@@ -37,7 +40,9 @@ protected:
     NActors::TActorId HttpProxyId;
     const TOpenIdConnectSettings Settings;
     const TYdbLocation& Location;
+    TMaybe<NYdb::NTable::TSession> DbSession;
     NOIDC::TOidcSession OidcSession;
+    TString Code;
 
 public:
     THandlerSessionCreate(const NActors::TActorId& sender,
@@ -51,6 +56,9 @@ public:
 protected:
     virtual void RequestSessionToken(const TString&, const NActors::TActorContext&) = 0;
     virtual void ProcessSessionToken(const TString& accessToken, const NActors::TActorContext&) = 0;
+
+    void Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult::TPtr event, const NActors::TActorContext& ctx);
+    void Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult::TPtr event, const NActors::TActorContext& ctx);
     void Handle(NHttp::TEvHttpProxy::TEvHttpIncomingResponse::TPtr event, const NActors::TActorContext& ctx);
 };
 

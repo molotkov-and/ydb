@@ -17,7 +17,7 @@ THandlerSessionServiceCheckYandex::THandlerSessionServiceCheckYandex(const NActo
                                 const TOpenIdConnectSettings& settings,
                                 const TYdbLocation& location)
     : THandlerSessionServiceCheck(sender, request, httpProxyId, settings, location)
-    , DbSession()
+    // , DbSession()
     , OidcSession(request)
 {}
 
@@ -69,8 +69,8 @@ void THandlerSessionServiceCheckYandex::Handle(NMVP::THandlerActorYdb::TEvPrivat
         DbSession = result.GetSession();
         TStringBuilder query;
         query << "DECLARE $STATE AS Text;\n"
-                    "DECLARE $REDIRECT_URL AS Text;\n"
-                    "DECLARE $IS_AJAX_REQUEST AS Bool;\n";
+                 "DECLARE $REDIRECT_URL AS Text;\n"
+                 "DECLARE $IS_AJAX_REQUEST AS Bool;\n";
         query << "INSERT INTO `ydb/OidcSessions` (state, redirect_url, expiration_time, is_ajax_request)\n";
         query << "VALUES ($STATE, $REDIRECT_URL, CurrentUtcDateTime() + Interval('PT" << TOidcSession::STATE_LIFE_TIME.Seconds() << "S'), $IS_AJAX_REQUEST);\n";
         auto txControl = NYdb::NTable::TTxControl::BeginTx(NYdb::NTable::TTxSettings::SerializableRW()).CommitTx();
@@ -86,6 +86,7 @@ void THandlerSessionServiceCheckYandex::Handle(NMVP::THandlerActorYdb::TEvPrivat
             actorSystem->Send(actorId, new NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult(res.ExtractValue()));
         });
     } else {
+        LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Can not create session to write oidc session");
         // Обработать не создавшуюся сессию. Возможно попробовать снова создать
     }
 }
@@ -101,6 +102,7 @@ void THandlerSessionServiceCheckYandex::Handle(NMVP::THandlerActorYdb::TEvPrivat
         ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
         Die(ctx);
     } else {
+        LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Write session to db is failed");
         // Обработать ошибку записи в базу. Сделать повторную попытку
     }
 }

@@ -17,30 +17,91 @@ THandlerSessionCreate::THandlerSessionCreate(const NActors::TActorId& sender,
 
 void THandlerSessionCreate::Bootstrap(const NActors::TActorContext& ctx) {
     NHttp::TUrlParameters urlParameters(Request->URL);
-    TString code = urlParameters["code"];
+    Code = urlParameters["code"];
     TString state = urlParameters["state"];
 
     NHttp::THeaders headers(Request->Headers);
     NHttp::TCookies cookies(headers.Get("cookie"));
 
-    // TString error;
-    // if (Settings.StoreSessionsOnServerSideSetting.Enable) {
-    //     error = OidcSession.CheckSessionStoredOnServerSide(state);
-    // } else {
-    //     RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
-    // }
-    TRestoreOidcSessionResult restoreSessionResult = RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
-    OidcSession = restoreSessionResult.Session;
-    if (restoreSessionResult.IsSuccess()/*IsStateValid(state, cookies, ctx)*/ && !code.Empty()) {
-        RequestSessionToken(code, ctx);
+    if (Settings.StoreSessionsOnServerSideSetting.Enable) {
+        OidcSession.SetState(state);
+        NActors::TActorSystem* actorSystem = ctx.ActorSystem();
+        NActors::TActorId actorId = ctx.SelfID;
+        NYdb::NTable::TClientSettings clientTableSettings;
+        clientTableSettings.Database(Location.RootDomain)
+                            .AuthToken(MVPAppData()->Tokenator->GetToken(Settings.StoreSessionsOnServerSideSetting.AccessTokenName));
+        auto tableClient = Location.GetTableClient(clientTableSettings);
+        tableClient.CreateSession().Subscribe([actorId, actorSystem] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
+            NYdb::NTable::TAsyncCreateSessionResult res(result);
+            actorSystem->Send(actorId, new NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult(res.ExtractValue()));
+        });
     } else {
-        NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
-                                                                                .IncomingRequest = Request,
-                                                                                .Settings = Settings,
-                                                                                .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);
-        ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(response));
-        TBase::Die(ctx);
-        return;
+        TRestoreOidcSessionResult restoreSessionResult = RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
+        OidcSession = restoreSessionResult.Session;
+        if (restoreSessionResult.IsSuccess()/*IsStateValid(state, cookies, ctx)*/ && !Code.Empty()) {
+            RequestSessionToken(Code, ctx);
+        } else {
+            NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
+                                                                                    .IncomingRequest = Request,
+                                                                                    .Settings = Settings,
+                                                                                    .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);
+            ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(response));
+            TBase::Die(ctx);
+            return;
+        }
+    }
+}
+
+void THandlerSessionCreate::Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult::TPtr event, const NActors::TActorContext& ctx) {
+    const NYdb::NTable::TCreateSessionResult& result(event->Get()->Result);
+    if (result.IsSuccess()) {
+        DbSession = result.GetSession();
+        TStringBuilder query;
+        query << "DECLARE $STATE AS Text;\n";
+        query << "SELECT * FROM `ydb/OidcSessions` WHERE state=$STATE AND CurrentUtcDatetime() < expire_time;\n";
+        auto txControl = NYdb::NTable::TTxControl::BeginTx(NYdb::NTable::TTxSettings::OnlineRO(NYdb::NTable::TTxOnlineSettings().AllowInconsistentReads(true))).CommitTx();
+        NYdb::TParamsBuilder params;
+        params.AddParam("$STATE", NYdb::TValueBuilder().Utf8(OidcSession.GetState()).Build());
+        auto executeDataQueryResult = DbSession->ExecuteDataQuery(query, txControl, params.Build());
+        NActors::TActorSystem* actorSystem = ctx.ExecutorThread.ActorSystem;
+        NActors::TActorId actorId = ctx.SelfID;
+        executeDataQueryResult.Subscribe([actorId, actorSystem] (const NYdb::NTable::TAsyncDataQueryResult& result) mutable {
+            NYdb::NTable::TAsyncDataQueryResult res(result);
+            actorSystem->Send(actorId, new NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult(res.ExtractValue()));
+        });
+    } else {
+        LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Can not create session to read oidc session");
+        // Обработать ошибку создания сессии
+    }
+}
+
+void THandlerSessionCreate::Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult::TPtr event, const NActors::TActorContext& ctx) {
+    NYdb::NTable::TDataQueryResult& result(event->Get()->Result);
+    if (result.IsSuccess()) {
+        try {
+            auto resultSet = result.GetResultSet(0);
+            NYdb::TResultSetParser rsParser(resultSet);
+            const auto& columnsMeta = resultSet.GetColumnsMeta();
+            if (rsParser.TryNextRow()) {
+                for (size_t columnNum = 0; columnNum < columnsMeta.size(); ++columnNum) {
+                    const NYdb::TColumn& columnMeta = columnsMeta[columnNum];
+                    if (columnMeta.Name == "redirect_url") {
+                        OidcSession.SetRedirectUrl(rsParser.ColumnParser(columnNum).GetOptionalUtf8().GetRef());
+                    }
+                    if (columnMeta.Name == "is_ajax_request") {
+                        OidcSession.SetIsAjaxRequest(rsParser.ColumnParser(columnNum).GetOptionalBool().GetRef());
+                    }
+                }
+                RequestSessionToken(Code, ctx);
+            } else {
+                LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Read session: no data for " << OidcSession.GetState());
+            }
+        } catch (const std::exception& e) {
+            LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Read session: failed to get result:\n" << e.what());
+        }
+    } else {
+        LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Read session: failed to get result");
+        // Обработать ошибку в чтении бд
     }
 }
 
