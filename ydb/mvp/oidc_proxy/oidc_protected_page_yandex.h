@@ -3,6 +3,8 @@
 #include "oidc_protected_page.h"
 #include "oidc_session.h"
 
+struct TYdbLocation;
+
 namespace NOIDC {
 
 class THandlerSessionServiceCheckYandex : public THandlerSessionServiceCheck {
@@ -14,7 +16,8 @@ public:
     THandlerSessionServiceCheckYandex(const NActors::TActorId& sender,
                                 const NHttp::THttpIncomingRequestPtr& request,
                                 const NActors::TActorId& httpProxyId,
-                                const TOpenIdConnectSettings& settings);
+                                const TOpenIdConnectSettings& settings,
+                                const TYdbLocation& location);
 
     void Bootstrap(const NActors::TActorContext& ctx) override;
     void Handle(TEvPrivate::TEvCheckSessionResponse::TPtr event, const NActors::TActorContext& ctx);

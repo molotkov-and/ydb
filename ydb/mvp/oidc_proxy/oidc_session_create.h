@@ -21,6 +21,8 @@
 #include <ydb/mvp/core/appdata.h>
 #include "openid_connect.h"
 
+struct TYdbLocation;
+
 namespace NOIDC {
 
 class THandlerSessionCreate : public NActors::TActorBootstrapped<THandlerSessionCreate> {
@@ -34,13 +36,15 @@ protected:
     const NHttp::THttpIncomingRequestPtr Request;
     NActors::TActorId HttpProxyId;
     const TOpenIdConnectSettings Settings;
+    const TYdbLocation& Location;
     NOIDC::TOidcSession OidcSession;
 
 public:
     THandlerSessionCreate(const NActors::TActorId& sender,
                           const NHttp::THttpIncomingRequestPtr& request,
                           const NActors::TActorId& httpProxyId,
-                          const TOpenIdConnectSettings& settings);
+                          const TOpenIdConnectSettings& settings,
+                          const TYdbLocation& location);
 
     void Bootstrap(const NActors::TActorContext& ctx);
 

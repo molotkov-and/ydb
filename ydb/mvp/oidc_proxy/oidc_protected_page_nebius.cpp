@@ -5,8 +5,9 @@ namespace NOIDC {
 THandlerSessionServiceCheckNebius::THandlerSessionServiceCheckNebius(const NActors::TActorId& sender,
                                       const NHttp::THttpIncomingRequestPtr& request,
                                       const NActors::TActorId& httpProxyId,
-                                      const TOpenIdConnectSettings& settings)
-    : THandlerSessionServiceCheck(sender, request, httpProxyId, settings)
+                                      const TOpenIdConnectSettings& settings,
+                                      const TYdbLocation& location)
+    : THandlerSessionServiceCheck(sender, request, httpProxyId, settings, location)
 {}
 
 void THandlerSessionServiceCheckNebius::StartOidcProcess(const NActors::TActorContext& ctx) {

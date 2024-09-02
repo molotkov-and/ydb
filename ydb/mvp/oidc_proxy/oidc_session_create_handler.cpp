@@ -4,10 +4,11 @@
 
 namespace NOIDC {
 
-TSessionCreateHandler::TSessionCreateHandler(const NActors::TActorId& httpProxyId, const TOpenIdConnectSettings& settings)
+TSessionCreateHandler::TSessionCreateHandler(const NActors::TActorId& httpProxyId, const TOpenIdConnectSettings& settings, const TYdbLocation& location)
     : TBase(&TSessionCreateHandler::StateWork)
     , HttpProxyId(httpProxyId)
     , Settings(settings)
+    , Location(location)
 {}
 
 void TSessionCreateHandler::Handle(NHttp::TEvHttpProxy::TEvHttpIncomingRequest::TPtr event, const NActors::TActorContext& ctx) {
@@ -15,10 +16,10 @@ void TSessionCreateHandler::Handle(NHttp::TEvHttpProxy::TEvHttpIncomingRequest::
     if (request->Method == "GET") {
         switch (Settings.AccessServiceType) {
             case NMvp::yandex_v2:
-                ctx.Register(new THandlerSessionCreateYandex(event->Sender, request, HttpProxyId, Settings));
+                ctx.Register(new THandlerSessionCreateYandex(event->Sender, request, HttpProxyId, Settings, Location));
                 return;
             case NMvp::nebius_v1:
-                ctx.Register(new THandlerSessionCreateNebius(event->Sender, request, HttpProxyId, Settings));
+                ctx.Register(new THandlerSessionCreateNebius(event->Sender, request, HttpProxyId, Settings, Location));
                 return;
         }
     }

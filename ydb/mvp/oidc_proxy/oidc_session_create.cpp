@@ -5,11 +5,13 @@ namespace NOIDC {
 THandlerSessionCreate::THandlerSessionCreate(const NActors::TActorId& sender,
                           const NHttp::THttpIncomingRequestPtr& request,
                           const NActors::TActorId& httpProxyId,
-                          const TOpenIdConnectSettings& settings)
+                          const TOpenIdConnectSettings& settings,
+                          const TYdbLocation& location)
     : Sender(sender)
     , Request(request)
     , HttpProxyId(httpProxyId)
     , Settings(settings)
+    , Location(location)
     , OidcSession(settings)
 {}
 

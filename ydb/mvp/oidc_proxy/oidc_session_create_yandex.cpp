@@ -5,8 +5,9 @@ namespace NOIDC {
 THandlerSessionCreateYandex::THandlerSessionCreateYandex(const NActors::TActorId& sender,
                           const NHttp::THttpIncomingRequestPtr& request,
                           const NActors::TActorId& httpProxyId,
-                          const TOpenIdConnectSettings& settings)
-    : THandlerSessionCreate(sender, request, httpProxyId, settings)
+                          const TOpenIdConnectSettings& settings,
+                          const TYdbLocation& location)
+    : THandlerSessionCreate(sender, request, httpProxyId, settings, location)
 {}
 
 void THandlerSessionCreateYandex::RequestSessionToken(const TString& code, const NActors::TActorContext& ctx) {

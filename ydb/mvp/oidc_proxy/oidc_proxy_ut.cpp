@@ -30,6 +30,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -39,7 +46,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         const TString iamToken {"protected_page_iam_token"};
         NHttp::THttpIncomingRequestPtr incomingRequest = new NHttp::THttpIncomingRequest();
@@ -76,6 +83,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -85,7 +99,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         NHttp::THttpIncomingRequestPtr incomingRequest = new NHttp::THttpIncomingRequest();
         EatWholeString(incomingRequest, "OPTIONS /" + allowedProxyHost + "/counters HTTP/1.1\r\n"
@@ -129,6 +143,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -138,7 +159,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.AllowedCookies.second = "allowed_session_cookie";
@@ -180,6 +201,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -189,7 +217,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.AllowedCookies.second = "allowed_session_cookie";
@@ -260,6 +288,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page:1234"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -269,7 +304,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.AllowedCookies.second = "allowed_session_cookie";
@@ -308,6 +343,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -318,7 +360,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.AllowedCookies.second = "allowed_session_cookie";
@@ -370,6 +412,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -378,7 +427,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.IsTokenAllowed = false;
@@ -512,6 +561,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         const TString allowedProxyHost {"ydb.viewer.page"};
 
         NOIDC::TOpenIdConnectSettings settings {
@@ -523,7 +579,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.AllowedCookies.second = "allowed_session_cookie";
@@ -566,7 +622,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         UNIT_ASSERT_STRING_CONTAINS(setCookie, expectedCookieName);
         redirectStrategy.CheckSpecificHeaders(headers);
 
-        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings));
+        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings, metaLocation));
         incomingRequest = new NHttp::THttpIncomingRequest();
         TStringBuilder request;
         request << "GET /auth/callback?code=code_template&state=" << state << " HTTP/1.1\r\n";
@@ -636,6 +692,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         NOIDC::TOpenIdConnectSettings settings {
             .ClientId = "client_id",
             .SessionServiceEndpoint = "localhost:" + ToString(sessionServicePort),
@@ -657,7 +720,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         builder.AddListeningPort(settings.SessionServiceEndpoint, grpc::InsecureServerCredentials()).RegisterService(&sessionServiceMock);
         std::unique_ptr<grpc::Server> sessionServer(builder.BuildAndStart());
 
-        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings));
+        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings, metaLocation));
         const TString state = "test_state";
         const TString wrongState = "wrong_state";
         const TString hostProxy = "oidcproxy.net";
@@ -700,6 +763,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         NOIDC::TOpenIdConnectSettings settings {
             .SessionServiceEndpoint = "localhost:" + ToString(sessionServicePort),
             .AuthorizationServerAddress = "https://auth.test.net",
@@ -713,7 +783,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         EatWholeString(incomingRequestProtectedPage, requestProtectedPage);
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings));
+        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.IsTokenAllowed = false;
@@ -755,6 +825,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         NOIDC::TOpenIdConnectSettings settings {
             .ClientId = "client_id",
             .SessionServiceEndpoint = "localhost:" + ToString(sessionServicePort),
@@ -776,7 +853,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         builder.AddListeningPort(settings.SessionServiceEndpoint, grpc::InsecureServerCredentials()).RegisterService(&sessionServiceMock);
         std::unique_ptr<grpc::Server> sessionServer(builder.BuildAndStart());
 
-        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings));
+        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings, metaLocation));
         const TString state = "test_state";
         TStringBuilder request;
         request << "GET /auth/callback?code=code_template&state=" << state << " HTTP/1.1\r\n";
@@ -834,6 +911,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         NOIDC::TOpenIdConnectSettings settings {
             .SessionServiceEndpoint = "localhost:" + ToString(sessionServicePort),
             .AuthorizationServerAddress = "https://auth.test.net",
@@ -847,7 +931,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         EatWholeString(incomingRequestProtectedPage, requestProtectedPage);
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings));
+        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.IsOpenIdScopeMissed = true;
@@ -889,6 +973,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         NOIDC::TOpenIdConnectSettings settings {
             .SessionServiceEndpoint = "localhost:" + ToString(sessionServicePort),
             .AuthorizationServerAddress = "https://auth.test.net",
@@ -912,7 +1003,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         builder.AddListeningPort(settings.SessionServiceEndpoint, grpc::InsecureServerCredentials()).RegisterService(&sessionServiceMock);
         std::unique_ptr<grpc::Server> sessionServer(builder.BuildAndStart());
 
-        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings));
+        const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings, metaLocation));
         NOIDC::TOidcSession oidcSession1(incomingRequestProtectedPage, settings);
         NOIDC::TOidcSession oidcSession2(incomingRequestProtectedPage, settings);
         TStringBuilder request;
@@ -950,6 +1041,13 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TMvpTestRuntime runtime;
         runtime.Initialize();
 
+        TYdbLocation metaLocation {
+            "oidc-proxy",
+            "oidc-proxy",
+            {},
+            {}
+        };
+
         std::vector<TString> allowedProxyHosts {
             "first.ydb.viewer.page",
             "second.ydb.viewer.page",
@@ -972,7 +1070,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new NOIDC::TProtectedPageHandler(edge, settings, metaLocation));
 
         TSessionServiceMock sessionServiceMock;
         sessionServiceMock.AllowedCookies.second = "allowed_session_cookie";

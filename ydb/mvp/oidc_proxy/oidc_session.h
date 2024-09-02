@@ -3,7 +3,7 @@
 #include <util/generic/string.h>
 #include <functional>
 #include <ydb/library/actors/http/http.h>
-#include <ydb/mvp/core/core_ydb.h>
+// #include <ydb/mvp/core/core_ydb.h>
 
 namespace NYdb {
 class TStatus;
@@ -21,7 +21,7 @@ private:
     TString State;
     bool IsAjaxRequest = false;
     TString RedirectUrl;
-    TYdbLocation MetaLocation;
+    // TYdbLocation MetaLocation;
     TString MetaAccessTokenName;
 
 public:

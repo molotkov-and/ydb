@@ -20,6 +20,8 @@
 #include <ydb/core/util/wildcard.h>
 #include "openid_connect.h"
 
+struct TYdbLocation;
+
 namespace NOIDC {
 
 class THandlerSessionServiceCheck : public NActors::TActorBootstrapped<THandlerSessionServiceCheck> {
@@ -33,6 +35,7 @@ protected:
     TString ProtectedPageUrl;
     TString RequestedPageScheme;
     bool IsAjaxRequest = false;
+    const TYdbLocation& Location;
 
     const static inline TStringBuf NOT_FOUND_HTML_PAGE = "<html><head><title>404 Not Found</title></head><body bgcolor=\"white\"><center><h1>404 Not Found</h1></center></body></html>";
     const static inline TStringBuf IAM_TOKEN_SCHEME = "Bearer ";
@@ -43,7 +46,8 @@ public:
     THandlerSessionServiceCheck(const NActors::TActorId& sender,
                                 const NHttp::THttpIncomingRequestPtr& request,
                                 const NActors::TActorId& httpProxyId,
-                                const TOpenIdConnectSettings& settings);
+                                const TOpenIdConnectSettings& settings,
+                                const TYdbLocation& location);
 
 
     virtual void Bootstrap(const NActors::TActorContext& ctx);

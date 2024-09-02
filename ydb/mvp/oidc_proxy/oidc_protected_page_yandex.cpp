@@ -9,8 +9,9 @@ namespace NOIDC {
 THandlerSessionServiceCheckYandex::THandlerSessionServiceCheckYandex(const NActors::TActorId& sender,
                                 const NHttp::THttpIncomingRequestPtr& request,
                                 const NActors::TActorId& httpProxyId,
-                                const TOpenIdConnectSettings& settings)
-    : THandlerSessionServiceCheck(sender, request, httpProxyId, settings)
+                                const TOpenIdConnectSettings& settings,
+                                const TYdbLocation& location)
+    : THandlerSessionServiceCheck(sender, request, httpProxyId, settings, location)
 {}
 
 void THandlerSessionServiceCheckYandex::Bootstrap(const NActors::TActorContext& ctx) {

@@ -3,6 +3,8 @@
 #include "oidc_session_create.h"
 #include "oidc_session.h"
 
+struct TYdbLocation;
+
 namespace NOIDC {
 
 class THandlerSessionCreateYandex : public THandlerSessionCreate {
@@ -13,7 +15,8 @@ public:
     THandlerSessionCreateYandex(const NActors::TActorId& sender,
                           const NHttp::THttpIncomingRequestPtr& request,
                           const NActors::TActorId& httpProxyId,
-                          const TOpenIdConnectSettings& settings);
+                          const TOpenIdConnectSettings& settings,
+                          const TYdbLocation& location);
 
 private:
     virtual void ProcessSessionToken(const TString& sessionToken, const NActors::TActorContext& ctx) override;

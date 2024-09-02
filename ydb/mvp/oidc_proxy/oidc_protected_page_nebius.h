@@ -3,6 +3,8 @@
 #include "oidc_protected_page.h"
 #include "oidc_session.h"
 
+struct TYdbLocation;
+
 namespace NOIDC {
 
 class THandlerSessionServiceCheckNebius : public THandlerSessionServiceCheck {
@@ -13,7 +15,8 @@ public:
     THandlerSessionServiceCheckNebius(const NActors::TActorId& sender,
                                       const NHttp::THttpIncomingRequestPtr& request,
                                       const NActors::TActorId& httpProxyId,
-                                      const TOpenIdConnectSettings& settings);
+                                      const TOpenIdConnectSettings& settings,
+                                      const TYdbLocation& location);
 
     void StartOidcProcess(const NActors::TActorContext& ctx) override;
     void HandleExchange(NHttp::TEvHttpProxy::TEvHttpIncomingResponse::TPtr event, const NActors::TActorContext& ctx);

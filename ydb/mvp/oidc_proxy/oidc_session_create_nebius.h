@@ -2,6 +2,8 @@
 
 #include "oidc_session_create.h"
 
+struct TYdbLocation;
+
 namespace NOIDC {
 
 class THandlerSessionCreateNebius : public THandlerSessionCreate {
@@ -12,7 +14,8 @@ public:
     THandlerSessionCreateNebius(const NActors::TActorId& sender,
                                 const NHttp::THttpIncomingRequestPtr& request,
                                 const NActors::TActorId& httpProxyId,
-                                const TOpenIdConnectSettings& settings);
+                                const TOpenIdConnectSettings& settings,
+                                const TYdbLocation& location);
 
 private:
     void RequestSessionToken(const TString& code, const NActors::TActorContext& ctx) override;
