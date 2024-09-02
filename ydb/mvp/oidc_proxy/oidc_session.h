@@ -14,23 +14,21 @@ struct TOpenIdConnectSettings;
 
 
 class TOidcSession {
+public:
+    static const TDuration STATE_LIFE_TIME;
+
 private:
     static constexpr size_t COOKIE_MAX_AGE_SEC = 420;
-    static const TDuration STATE_LIFE_TIME;
 
     TString State;
     bool IsAjaxRequest = false;
     TString RedirectUrl;
-    // TYdbLocation MetaLocation;
-    TString MetaAccessTokenName;
 
 public:
     TOidcSession(const TString& state = "", const TString& redirectUrl = "", bool isAjaxRequest = false);
-    TOidcSession(const TOpenIdConnectSettings& settings);
-    TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings);
-    TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest);
+    TOidcSession(const NHttp::THttpIncomingRequestPtr& request);
+    TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, bool isAjaxRequest);
 
-    void SaveSessionOnServerSide(std::function<void(const NYdb::TStatus& status, const TString& error)> cb) const;
     TString CreateOidcSessionCookie(const TString& secret) const;
     void CheckSessionStoredOnServerSide(const TString& state, std::function<void(const TString& redirectUrl, bool isAjaxRequest)> cb);
 

@@ -1,4 +1,9 @@
+#include <ydb/public/sdk/cpp/client/ydb_table/table.h>
+#include <ydb/public/sdk/cpp/client/ydb_params/params.h>
+#include <ydb/public/sdk/cpp/client/ydb_types/status/status.h>
+#include <ydb/mvp/core/core_ydb_impl.h>
 #include "oidc_protected_page_yandex.h"
+#include "oidc_session.h"
 
 namespace NYdb {
 class TStatus;
@@ -12,6 +17,8 @@ THandlerSessionServiceCheckYandex::THandlerSessionServiceCheckYandex(const NActo
                                 const TOpenIdConnectSettings& settings,
                                 const TYdbLocation& location)
     : THandlerSessionServiceCheck(sender, request, httpProxyId, settings, location)
+    , DbSession()
+    , OidcSession(request)
 {}
 
 void THandlerSessionServiceCheckYandex::Bootstrap(const NActors::TActorContext& ctx) {
@@ -30,8 +37,25 @@ void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvCheckSessionRespon
 void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvErrorResponse::TPtr event, const NActors::TActorContext& ctx) {
     LOG_DEBUG_S(ctx, NMVP::EService::MVP, "SessionService.Check(): " << event->Get()->Status);
     if (event->Get()->Status == "400") {
-        SaveSession(NOIDC::TOidcSession(Request, Settings), ctx);
-        // httpResponse = GetHttpOutgoingResponsePtr(event->Get()->Details, Request, Settings, IsAjaxRequest);
+        if (Settings.StoreSessionsOnServerSideSetting.Enable) {
+            NActors::TActorSystem* actorSystem = ctx.ActorSystem();
+            NActors::TActorId actorId = ctx.SelfID;
+            NYdb::NTable::TClientSettings clientTableSettings;
+            clientTableSettings.Database(Location.RootDomain)
+                               .AuthToken(MVPAppData()->Tokenator->GetToken(Settings.StoreSessionsOnServerSideSetting.AccessTokenName));
+            auto tableClient = Location.GetTableClient(clientTableSettings);
+            tableClient.CreateSession().Subscribe([actorId, actorSystem] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
+                NYdb::NTable::TAsyncCreateSessionResult res(result);
+                actorSystem->Send(actorId, new NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult(res.ExtractValue()));
+            });
+        } else {
+            NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
+                                                                                .IncomingRequest = Request,
+                                                                                .Settings = Settings,
+                                                                                .NeedStoreSessionOnClientSide = true});
+            ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
+            Die(ctx);
+        }
     } else {
         NHttp::THttpOutgoingResponsePtr httpResponse = Request->CreateResponse( event->Get()->Status, event->Get()->Message, "text/plain", event->Get()->Details);
         ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
@@ -39,13 +63,46 @@ void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvErrorResponse::TPt
     }
 }
 
-void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvRequestAuthorizationCode::TPtr event, const NActors::TActorContext& ctx) {
-    NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = event->Get()->Session,
+void THandlerSessionServiceCheckYandex::Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult::TPtr event, const NActors::TActorContext& ctx) {
+    const NYdb::NTable::TCreateSessionResult& result(event->Get()->Result);
+    if (result.IsSuccess()) {
+        DbSession = result.GetSession();
+        TStringBuilder query;
+        query << "DECLARE $STATE AS Text;\n"
+                    "DECLARE $REDIRECT_URL AS Text;\n"
+                    "DECLARE $IS_AJAX_REQUEST AS Bool;\n";
+        query << "INSERT INTO `ydb/OidcSessions` (state, redirect_url, expiration_time, is_ajax_request)\n";
+        query << "VALUES ($STATE, $REDIRECT_URL, CurrentUtcDateTime() + Interval('PT" << TOidcSession::STATE_LIFE_TIME.Seconds() << "S'), $IS_AJAX_REQUEST);\n";
+        auto txControl = NYdb::NTable::TTxControl::BeginTx(NYdb::NTable::TTxSettings::SerializableRW()).CommitTx();
+        NYdb::TParamsBuilder params;
+        params.AddParam("$STATE", NYdb::TValueBuilder().Utf8(OidcSession.GetState()).Build());
+        params.AddParam("$REDIRECT_URL", NYdb::TValueBuilder().Utf8(OidcSession.GetRedirectUrl()).Build());
+        params.AddParam("$IS_AJAX_REQUEST", NYdb::TValueBuilder().Bool(OidcSession.GetIsAjaxRequest()).Build());
+        auto executeDataQueryResult = DbSession->ExecuteDataQuery(query, txControl, params.Build());
+        NActors::TActorSystem* actorSystem = ctx.ExecutorThread.ActorSystem;
+        NActors::TActorId actorId = ctx.SelfID;
+        executeDataQueryResult.Subscribe([actorId, actorSystem] (const NYdb::NTable::TAsyncDataQueryResult& result) mutable {
+            NYdb::NTable::TAsyncDataQueryResult res(result);
+            actorSystem->Send(actorId, new NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult(res.ExtractValue()));
+        });
+    } else {
+        // Обработать не создавшуюся сессию. Возможно попробовать снова создать
+    }
+}
+
+void THandlerSessionServiceCheckYandex::Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult::TPtr event, const NActors::TActorContext& ctx) {
+    NYdb::NTable::TDataQueryResult& result(event->Get()->Result);
+    if (result.IsSuccess()) {
+        DbSession->Close();
+        NHttp::THttpOutgoingResponsePtr httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
                                                                                 .IncomingRequest = Request,
                                                                                 .Settings = Settings,
-                                                                                .NeedStoreSessionOnClientSide = event->Get()->NeedStoreSessionOnClient});
-    ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
-    Die(ctx);
+                                                                                .NeedStoreSessionOnClientSide = false});
+        ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
+        Die(ctx);
+    } else {
+        // Обработать ошибку записи в базу. Сделать повторную попытку
+    }
 }
 
 void THandlerSessionServiceCheckYandex::StartOidcProcess(const NActors::TActorContext& ctx) {
@@ -90,26 +147,6 @@ bool THandlerSessionServiceCheckYandex::NeedSendSecureHttpRequest(const NHttp::T
         }
     }
     return false;
-}
-
-void THandlerSessionServiceCheckYandex::SaveSession(const NOIDC::TOidcSession& oidcSession, const NActors::TActorContext& ctx) const {
-    if (Settings.StoreSessionsOnServerSideSetting.Enable) {
-        NActors::TActorSystem* actorSystem = ctx.ActorSystem();
-        NActors::TActorId actorId = ctx.SelfID;
-        oidcSession.SaveSessionOnServerSide([oidcSession, actorId, actorSystem] (const NYdb::TStatus& status, const TString& error) {
-            if (status.IsSuccess()) {
-                actorSystem->Send(actorId, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession, false));
-            } else {
-                LOG_DEBUG_S(*actorSystem, NMVP::EService::MVP, error);
-                // Сделать ретраи попыток сохранения сессии
-
-                // Не смогли сохранить в базу, отправляем сессию клиенту
-                actorSystem->Send(actorId, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
-            }
-        });
-    } else {
-        ctx.Send(ctx.SelfID, new TEvPrivate::TEvRequestAuthorizationCode(oidcSession));
-    }
 }
 
 } // NOIDC

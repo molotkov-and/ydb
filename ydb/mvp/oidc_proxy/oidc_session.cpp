@@ -19,75 +19,24 @@ TOidcSession::TOidcSession(const TString& state, const TString& redirectUrl, boo
     : State(state)
     , IsAjaxRequest(isAjaxRequest)
     , RedirectUrl(redirectUrl)
-    // , MetaLocation("oidc-proxy", "oidc-proxy", {}, "")
-    , MetaAccessTokenName("")
 {}
 
-TOidcSession::TOidcSession(const TOpenIdConnectSettings& settings)
-    // : MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
-    : MetaAccessTokenName(settings.StoreSessionsOnServerSideSetting.AccessTokenName)
-{}
-
-TOidcSession::TOidcSession(const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings)
+TOidcSession::TOidcSession(const NHttp::THttpIncomingRequestPtr& request)
     : State(GenerateState())
     , IsAjaxRequest(DetectAjaxRequest(request))
     , RedirectUrl(GetRedirectUrl(request, IsAjaxRequest))
-    // , MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
-    , MetaAccessTokenName(settings.StoreSessionsOnServerSideSetting.AccessTokenName)
 {}
 
-TOidcSession::TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, const TOpenIdConnectSettings& settings, bool isAjaxRequest)
+TOidcSession::TOidcSession(const TString& state, const NHttp::THttpIncomingRequestPtr& request, bool isAjaxRequest)
     : State(state)
     , IsAjaxRequest(isAjaxRequest)
     , RedirectUrl(GetRedirectUrl(request, IsAjaxRequest))
-    // , MetaLocation("oidc-proxy", "oidc-proxy", {std::make_pair("cluster-api", settings.StoreSessionsOnServerSideSetting.Endpoint)}, settings.StoreSessionsOnServerSideSetting.Database)
-    , MetaAccessTokenName(settings.StoreSessionsOnServerSideSetting.AccessTokenName)
 {}
 
 TString TOidcSession::CreateOidcSessionCookie(const TString& secret) const {
     return TStringBuilder() << CreateNameYdbOidcCookie(secret, State)
                             << "=" << GenerateCookie(secret)
                             << "; Path=" << GetAuthCallbackUrl() << "; Max-Age=" << COOKIE_MAX_AGE_SEC <<"; SameSite=None; Secure";
-}
-
-void TOidcSession::SaveSessionOnServerSide(std::function<void(const NYdb::TStatus&, const TString& error)>) const {
-    // NYdb::NTable::TClientSettings clientTableSettings;
-    // clientTableSettings.Database(MetaLocation.RootDomain)
-    //                    .AuthToken(MVPAppData()->Tokenator->GetToken(MetaAccessTokenName));
-    // auto tableClient = MetaLocation.GetTableClient(clientTableSettings);
-    // tableClient.CreateSession().Subscribe([state = State, redirectUrl = RedirectUrl, isAjaxRequest = IsAjaxRequest, cb = std::move(cb)] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
-    //     auto resultCopy = result;
-    //     auto res = resultCopy.ExtractValue();
-    //     if (res.IsSuccess()) {
-    //         auto session = res.GetSession();
-    //         TStringBuilder query;
-    //         query << "DECLARE $STATE AS Text;\n"
-    //                  "DECLARE $REDIRECT_URL AS Text;\n"
-    //                  "DECLARE $IS_AJAX_REQUEST AS Bool;\n";
-    //         query << "INSERT INTO `ydb/OidcSessions` (state, redirect_url, expiration_time, is_ajax_request)\n";
-    //         query << "VALUES ($STATE, $REDIRECT_URL, CurrentUtcDateTime() + Interval('PT" << STATE_LIFE_TIME.Seconds() << "S'), $IS_AJAX_REQUEST);\n";
-    //         auto txControl = NYdb::NTable::TTxControl::BeginTx(NYdb::NTable::TTxSettings::SerializableRW()).CommitTx();
-    //         NYdb::TParamsBuilder params;
-    //         params.AddParam("$STATE", NYdb::TValueBuilder().Utf8(state).Build());
-    //         params.AddParam("$REDIRECT_URL", NYdb::TValueBuilder().Utf8(redirectUrl).Build());
-    //         params.AddParam("$IS_AJAX_REQUEST", NYdb::TValueBuilder().Bool(isAjaxRequest).Build());
-    //         auto executeDataQueryResult = session.ExecuteDataQuery(query, txControl, params.Build());
-    //         executeDataQueryResult.Subscribe([cb = std::move(cb), session] (const NYdb::NTable::TAsyncDataQueryResult& result) mutable {
-    //             NYdb::NTable::TAsyncDataQueryResult resultCopy = result;
-    //             auto res = resultCopy.ExtractValue();
-    //             if (res.IsSuccess()) {
-    //                 cb(res, TStringBuilder() << "SaveSessionOnServerSide - success:\n" << (NYdb::TStatus&)res);
-    //             } else {
-    //                 // no result
-    //                 cb(res, TStringBuilder() << "SaveSessionOnServerSide - failed to get result:\n" << (NYdb::TStatus&)res);
-    //             }
-    //             session.Close();
-    //         });
-    //     } else {
-    //         // no session
-    //         cb(res, TStringBuilder() << "SaveSessionOnServerSide - failed to get session:\n" << (NYdb::TStatus&)res);
-    //     }
-    // });
 }
 
 void TOidcSession::CheckSessionStoredOnServerSide(const TString&, std::function<void(const TString& redirectUrl, bool isAjaxRequest)>) {

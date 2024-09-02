@@ -12,7 +12,7 @@ THandlerSessionCreate::THandlerSessionCreate(const NActors::TActorId& sender,
     , HttpProxyId(httpProxyId)
     , Settings(settings)
     , Location(location)
-    , OidcSession(settings)
+    , OidcSession()
 {}
 
 void THandlerSessionCreate::Bootstrap(const NActors::TActorContext& ctx) {
@@ -30,10 +30,11 @@ void THandlerSessionCreate::Bootstrap(const NActors::TActorContext& ctx) {
     //     RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
     // }
     TRestoreOidcSessionResult restoreSessionResult = RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
+    OidcSession = restoreSessionResult.Session;
     if (restoreSessionResult.IsSuccess()/*IsStateValid(state, cookies, ctx)*/ && !code.Empty()) {
         RequestSessionToken(code, ctx);
     } else {
-        NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings),
+        NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
                                                                                 .IncomingRequest = Request,
                                                                                 .Settings = Settings,
                                                                                 .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);

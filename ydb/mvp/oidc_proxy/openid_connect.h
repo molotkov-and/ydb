@@ -116,7 +116,6 @@ struct TEvPrivate {
         EvCheckSessionResponse = EventSpaceBegin(NActors::TEvents::ES_PRIVATE),
         EvCreateSessionResponse,
         EvErrorResponse,
-        EvRequestAuthorizationCode,
         EvEnd
     };
 
@@ -187,16 +186,6 @@ struct TEvPrivate {
             Message = status.Msg;
             Details = status.Details;
         }
-    };
-
-    struct TEvRequestAuthorizationCode : NActors::TEventLocal<TEvRequestAuthorizationCode, EvRequestAuthorizationCode> {
-        NOIDC::TOidcSession Session;
-        bool NeedStoreSessionOnClient = true;
-
-        TEvRequestAuthorizationCode(const NOIDC::TOidcSession& session, bool needStoreSessionOnClient = true)
-        : Session(session)
-        , NeedStoreSessionOnClient(needStoreSessionOnClient)
-        {}
     };
 };
 

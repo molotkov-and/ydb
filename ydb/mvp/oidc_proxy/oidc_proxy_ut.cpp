@@ -616,7 +616,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         const NHttp::THeaders headers(outgoingResponseEv->Response->Headers);
         UNIT_ASSERT(headers.Has("Set-Cookie"));
         TStringBuf setCookie = headers.Get("Set-Cookie");
-        NOIDC::TOidcSession oidcSession(state, incomingRequest, settings, redirectStrategy.IsAjaxRequest());
+        NOIDC::TOidcSession oidcSession(state, incomingRequest, redirectStrategy.IsAjaxRequest());
         TString expectedCookie = oidcSession.CreateOidcSessionCookie(settings.ClientSecret);
         TString expectedCookieName = expectedCookie.substr(0, expectedCookie.find('='));
         UNIT_ASSERT_STRING_CONTAINS(setCookie, expectedCookieName);
@@ -727,7 +727,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TStringBuilder request;
         request << "GET /auth/callback?code=code_template&state=" << wrongState << " HTTP/1.1\r\n";
         request << "Host: " + hostProxy + "\r\n";
-        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, settings, redirectStrategy.IsAjaxRequest());
+        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, redirectStrategy.IsAjaxRequest());
         request << "Cookie: " << TStringBuf(oidcSession.CreateOidcSessionCookie(settings.ClientSecret)).NextTok(';') << "\r\n";
         NHttp::THttpIncomingRequestPtr incomingRequest = new NHttp::THttpIncomingRequest();
         EatWholeString(incomingRequest, redirectStrategy.CreateRequest(request));
@@ -795,7 +795,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TStringBuilder request;
         request << "GET /auth/callback?code=code_template&state=" << state << " HTTP/1.1\r\n";
         request << "Host: oidcproxy.net\r\n";
-        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, settings, false);
+        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, false);
         request  << "Cookie: " << TStringBuf(oidcSession.CreateOidcSessionCookie(settings.ClientSecret)).NextTok(';') << "\r\n\r\n";
         NHttp::THttpIncomingRequestPtr incomingRequest = new NHttp::THttpIncomingRequest();
         EatWholeString(incomingRequest, request);
@@ -858,7 +858,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TStringBuilder request;
         request << "GET /auth/callback?code=code_template&state=" << state << " HTTP/1.1\r\n";
         request << "Host: oidcproxy.net\r\n";
-        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, settings, redirectStrategy.IsAjaxRequest());
+        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, redirectStrategy.IsAjaxRequest());
         request  << "Cookie: " << TStringBuf(oidcSession.CreateOidcSessionCookie(settings.ClientSecret)).NextTok(';') << "\r\n\r\n";
         NHttp::THttpIncomingRequestPtr incomingRequest = new NHttp::THttpIncomingRequest();
         EatWholeString(incomingRequest, redirectStrategy.CreateRequest(request));
@@ -943,7 +943,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         TStringBuilder request;
         request << "GET /callback?code=code_template&state=" << state << " HTTP/1.1\r\n";
         request << "Host: oidcproxy.net\r\n";
-        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, settings, false);
+        NOIDC::TOidcSession oidcSession(state, incomingRequestProtectedPage, false);
         request  << "Cookie: " << TStringBuf(oidcSession.CreateOidcSessionCookie(settings.ClientSecret)).NextTok(';') << "\r\n\r\n";
         NHttp::THttpIncomingRequestPtr incomingRequest = new NHttp::THttpIncomingRequest();
         EatWholeString(incomingRequest, request);
@@ -1004,8 +1004,8 @@ Y_UNIT_TEST_SUITE(Mvp) {
         std::unique_ptr<grpc::Server> sessionServer(builder.BuildAndStart());
 
         const NActors::TActorId sessionCreator = runtime.Register(new NOIDC::TSessionCreateHandler(edge, settings, metaLocation));
-        NOIDC::TOidcSession oidcSession1(incomingRequestProtectedPage, settings);
-        NOIDC::TOidcSession oidcSession2(incomingRequestProtectedPage, settings);
+        NOIDC::TOidcSession oidcSession1(incomingRequestProtectedPage);
+        NOIDC::TOidcSession oidcSession2(incomingRequestProtectedPage);
         TStringBuilder request;
         request << "GET /auth/callback?code=code_template&state=" << oidcSession1.GetState() << " HTTP/1.1\r\n";
         request << "Host: oidcproxy.net\r\n";

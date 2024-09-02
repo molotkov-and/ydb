@@ -67,7 +67,7 @@ void THandlerSessionCreateYandex::HandleError(TEvPrivate::TEvErrorResponse::TPtr
     LOG_DEBUG_S(ctx, NMVP::EService::MVP, "SessionService.Create(): " << event->Get()->Status);
     NHttp::THttpOutgoingResponsePtr httpResponse;
     if (event->Get()->Status == "400") {
-        httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = NOIDC::TOidcSession(Request, Settings),
+        httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
                                                 .IncomingRequest = Request,
                                                 .Settings = Settings,
                                                 .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);
