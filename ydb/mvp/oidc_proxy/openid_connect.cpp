@@ -9,27 +9,6 @@
 namespace NOIDC {
 namespace {
 
-struct TRedirectUrlParameters {
-    TOpenIdConnectSettings OidcSettings;
-    TStringBuf CallbackUrl;
-    TStringBuf State;
-    TStringBuf Scheme;
-    TStringBuf Host;
-    NMvp::EAccessServiceType AccessServiceType;
-    TStringBuf AuthUrlPath;
-};
-
-TString CreateRedirectUrl(const TRedirectUrlParameters& parameters) {
-    TStringBuilder locationHeaderValue;
-    locationHeaderValue << parameters.OidcSettings.GetAuthEndpointURL()
-                        << "?response_type=code"
-                        << "&scope=openid"
-                        << "&state=" << parameters.State
-                        << "&client_id=" << parameters.OidcSettings.ClientId
-                        << "&redirect_uri=" << parameters.Scheme << parameters.Host << parameters.CallbackUrl;
-    return locationHeaderValue;
-}
-
 void SetCORS(const NHttp::THttpIncomingRequestPtr& request, NHttp::THeadersBuilder* const headers) {
     TString origin = TString(NHttp::THeaders(request->Headers)["Origin"]);
     if (origin.empty()) {
@@ -50,26 +29,14 @@ NHttp::THttpOutgoingResponsePtr CreateResponseForAjaxRequest(const NHttp::THttpI
 
 } // namespace
 
-TRestoreOidcSessionResult::TRestoreOidcSessionResult(const TOidcSession& session)
-    : Session(session)
-    , Status(EStatus::SUCCESS)
-    , ErrorMessage("")
-{}
-
-TRestoreOidcSessionResult::TRestoreOidcSessionResult(const TOidcSession& session, const EStatus& status, const TString& errorMessage)
+TRestoreOidcSessionResult::TRestoreOidcSessionResult(const TStatus& status, const TOidcSession& session)
     : Session(session)
     , Status(status)
-    , ErrorMessage(errorMessage)
 {}
 
-TRestoreOidcSessionResult::TRestoreOidcSessionResult(const EStatus& status, const TString& errorMessage)
-    : Session()
-    , Status(status)
-    , ErrorMessage(errorMessage)
-{}
 
 bool TRestoreOidcSessionResult::IsSuccess() const {
-    return Status == EStatus::SUCCESS;
+    return Status.IsSuccess;
 }
 
 TString HmacSHA256(TStringBuf key, TStringBuf data) {
@@ -94,13 +61,13 @@ void SetHeader(NYdbGrpc::TCallMeta& meta, const TString& name, const TString& va
 NHttp::THttpOutgoingResponsePtr GetHttpOutgoingResponsePtr(const TRequestAuthorizationCodeInitializer& initializer) {
     const auto& settings = initializer.Settings;
     const auto& request = initializer.IncomingRequest;
-    const TString redirectUrl = CreateRedirectUrl({ .OidcSettings = settings,
-                                                    .CallbackUrl = GetAuthCallbackUrl(),
-                                                    .State = initializer.OidcSession.GetState(),
-                                                    .Scheme = (request->Endpoint->Secure ? "https://" : "http://"),
-                                                    .Host = request->Host,
-                                                    .AccessServiceType = settings.AccessServiceType,
-                                                    .AuthUrlPath = settings.AuthUrlPath});
+    TStringBuilder redirectUrl;
+    redirectUrl << settings.GetAuthEndpointURL()
+                << "?response_type=code"
+                << "&scope=openid"
+                << "&state=" << initializer.OidcSession.GetState()
+                << "&client_id=" << settings.ClientId
+                << "&redirect_uri=" << (request->Endpoint->Secure ? "https://" : "http://") << request->Host << GetAuthCallbackUrl();
 
     NHttp::THeadersBuilder responseHeaders;
     if (initializer.NeedStoreSessionOnClientSide) {
@@ -131,10 +98,12 @@ TString CreateSecureCookie(const TString& key, const TString& value) {
 
 TRestoreOidcSessionResult RestoreSessionStoredOnClientSide(const TString& state, const NHttp::TCookies& cookies, const TString& secret) {
     TStringBuilder errorMessage;
-    errorMessage << "Restore session: ";
+    errorMessage << "Restore oidc session failed: ";
     const TString cookieName {TOidcSession::CreateNameYdbOidcCookie(secret, state)};
     if (!cookies.Has(cookieName)) {
-        return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::UNKNOWN_COOKIE, errorMessage << "Cannot find cookie " << cookieName);
+        return TRestoreOidcSessionResult({.IsSuccess = false,
+                                         .IsErrorRetryable = false,
+                                         .ErrorMessage = errorMessage << "Cannot find cookie " << cookieName});
     }
     TString cookieStruct = Base64Decode(cookies.Get(cookieName));
     TString stateStruct;
@@ -154,11 +123,15 @@ TRestoreOidcSessionResult RestoreSessionStoredOnClientSide(const TString& state,
         }
     }
     if (stateStruct.Empty() || expectedDigest.Empty()) {
-        return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::WRONG_COOKIE, errorMessage << "Struct with state and expected digest are empty");
+        return TRestoreOidcSessionResult({.IsSuccess = false,
+                                         .IsErrorRetryable = false,
+                                         .ErrorMessage = errorMessage << "Struct with state and expected digest are empty"});
     }
     TString digest = HmacSHA256(secret, stateStruct);
     if (expectedDigest != digest) {
-        return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::WRONG_COOKIE, errorMessage << "Calculated digest is not equal expected digest");
+        return TRestoreOidcSessionResult({.IsSuccess = false,
+                                         .IsErrorRetryable = false,
+                                         .ErrorMessage = errorMessage << "Calculated digest is not equal expected digest"});
     }
     TString expectedState;
     TString redirectUrl;
@@ -172,7 +145,9 @@ TRestoreOidcSessionResult RestoreSessionStoredOnClientSide(const TString& state,
         if (jsonValue.GetValuePointer("redirect_url", &jsonRedirectUrl)) {
             redirectUrl = jsonRedirectUrl->GetStringRobust();
         } else {
-            return TRestoreOidcSessionResult(TRestoreOidcSessionResult::EStatus::UNKNOWN_REDIRECT_URL, errorMessage << "Redirect url not found in cookie");
+            return TRestoreOidcSessionResult({.IsSuccess = false,
+                                             .IsErrorRetryable = false,
+                                             .ErrorMessage = errorMessage << "Redirect url not found in cookie"});
         }
         const NJson::TJsonValue* jsonExpirationTime = nullptr;
         if (jsonValue.GetValuePointer("expiration_time", &jsonExpirationTime)) {
@@ -181,22 +156,32 @@ TRestoreOidcSessionResult RestoreSessionStoredOnClientSide(const TString& state,
                 .tv_usec = 0
             };
             if (TInstant::Now() > TInstant(timeVal)) {
-                return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl), TRestoreOidcSessionResult::EStatus::EXPIRED_STATE, errorMessage << "State life time expired");
+                return TRestoreOidcSessionResult({.IsSuccess = false,
+                                                 .IsErrorRetryable = true,
+                                                 .ErrorMessage = errorMessage << "State life time expired"}, TOidcSession(state, redirectUrl));
             }
         } else {
-            return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl), TRestoreOidcSessionResult::EStatus::EXPIRED_STATE, errorMessage << "Expiration time not found in json");
+            return TRestoreOidcSessionResult({.IsSuccess = false,
+                                             .IsErrorRetryable = true,
+                                             .ErrorMessage = errorMessage << "Expiration time not found in json"}, TOidcSession(state, redirectUrl));
         }
         const NJson::TJsonValue* jsonAjaxRequest = nullptr;
         if (jsonValue.GetValuePointer("ajax_request", &jsonAjaxRequest)) {
             isAjaxRequest = jsonAjaxRequest->GetBooleanRobust();
         } else {
-            return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl), TRestoreOidcSessionResult::EStatus::UNKNOWN_AJAX_REQUEST, errorMessage << "Can not detect ajax request");
+            return TRestoreOidcSessionResult({.IsSuccess = false,
+                                             .IsErrorRetryable = true,
+                                             .ErrorMessage = errorMessage << "Can not detect ajax request"}, TOidcSession(state, redirectUrl));
         }
     }
     if (expectedState.Empty() || expectedState != state) {
-        return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl, isAjaxRequest), TRestoreOidcSessionResult::EStatus::UNKNOWN_STATE, errorMessage << "Unknown state");
+        return TRestoreOidcSessionResult({.IsSuccess = false,
+                                         .IsErrorRetryable = true,
+                                         .ErrorMessage = errorMessage << "Unknown state"}, TOidcSession(state, redirectUrl, isAjaxRequest));
     }
-    return TRestoreOidcSessionResult(TOidcSession(state, redirectUrl, isAjaxRequest));
+    return TRestoreOidcSessionResult({.IsSuccess = true,
+                                     .IsErrorRetryable = true,
+                                     .ErrorMessage = ""}, TOidcSession(state, redirectUrl, isAjaxRequest));
 }
 
 } // NOIDC

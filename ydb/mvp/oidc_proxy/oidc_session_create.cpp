@@ -38,16 +38,29 @@ void THandlerSessionCreate::Bootstrap(const NActors::TActorContext& ctx) {
     } else {
         TRestoreOidcSessionResult restoreSessionResult = RestoreSessionStoredOnClientSide(state, cookies, Settings.ClientSecret);
         OidcSession = restoreSessionResult.Session;
-        if (restoreSessionResult.IsSuccess()/*IsStateValid(state, cookies, ctx)*/ && !Code.Empty()) {
-            RequestSessionToken(Code, ctx);
+        if (restoreSessionResult.IsSuccess()) {
+            if (Code.Empty()) {
+                LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Restore oidc session failed: receive empty 'code' parameter");
+                NHttp::THeadersBuilder responseHeaders;
+                responseHeaders.Set("Location", OidcSession.GetRedirectUrl());
+                ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(Request->CreateResponse("302", "Empty code", responseHeaders)));
+                Die(ctx);
+            } else {
+                RequestSessionToken(Code, ctx);
+            }
         } else {
-            NHttp::THttpOutgoingResponsePtr response = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
-                                                                                    .IncomingRequest = Request,
-                                                                                    .Settings = Settings,
-                                                                                    .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);
-            ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(response));
-            TBase::Die(ctx);
-            return;
+            const auto& restoreSessionStatus = restoreSessionResult.Status;
+            LOG_DEBUG_S(ctx, NMVP::EService::MVP, restoreSessionStatus.ErrorMessage);
+            if (restoreSessionStatus.IsErrorRetryable) {
+                NHttp::THeadersBuilder responseHeaders;
+                responseHeaders.Set("Location", OidcSession.GetRedirectUrl());
+                ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(Request->CreateResponse("302", "Cannot restore oidc session", responseHeaders)));
+                Die(ctx);
+            } else {
+                const static TStringBuf BAD_REQUEST_HTML_PAGE = "<html><head><title>400 Bad Request</title></head><body bgcolor=\"white\"><center><h1>go back to the page</h1></center></body></html>";
+                ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(Request->CreateResponseBadRequest(BAD_REQUEST_HTML_PAGE, "text/html")));
+                Die(ctx);
+            }
         }
     }
 }

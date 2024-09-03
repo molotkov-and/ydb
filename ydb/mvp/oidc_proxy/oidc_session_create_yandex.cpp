@@ -67,10 +67,9 @@ void THandlerSessionCreateYandex::HandleError(TEvPrivate::TEvErrorResponse::TPtr
     LOG_DEBUG_S(ctx, NMVP::EService::MVP, "SessionService.Create(): " << event->Get()->Status);
     NHttp::THttpOutgoingResponsePtr httpResponse;
     if (event->Get()->Status == "400") {
-        httpResponse = GetHttpOutgoingResponsePtr({.OidcSession = OidcSession,
-                                                .IncomingRequest = Request,
-                                                .Settings = Settings,
-                                                .NeedStoreSessionOnClientSide = true}/*Request, Settings, ResponseHeaders, IsAjaxRequest*/);
+        NHttp::THeadersBuilder responseHeaders;
+        responseHeaders.Set("Location", OidcSession.GetRedirectUrl());
+        httpResponse = Request->CreateResponse("302", "Cannot fetch cookie from session service", responseHeaders);
     } else {
         NHttp::THeadersBuilder responseHeaders;
         responseHeaders.Set("Content-Type", "text/plain");

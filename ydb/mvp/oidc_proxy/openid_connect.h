@@ -60,24 +60,16 @@ struct TOpenIdConnectSettings {
 };
 
 struct TRestoreOidcSessionResult {
-    enum class EStatus {
-        UNKNOWN,
-        SUCCESS,
-        UNKNOWN_STATE,
-        EXPIRED_STATE,
-        UNKNOWN_COOKIE,
-        WRONG_COOKIE,
-        UNKNOWN_REDIRECT_URL,
-        UNKNOWN_AJAX_REQUEST,
+    struct TStatus {
+        bool IsSuccess = true;
+        bool IsErrorRetryable = false;
+        TString ErrorMessage;
     };
 
     TOidcSession Session;
-    EStatus Status;
-    TString ErrorMessage;
+    TStatus Status;
 
-    TRestoreOidcSessionResult(const TOidcSession& session);
-    TRestoreOidcSessionResult(const EStatus& status, const TString& errorMessage);
-    TRestoreOidcSessionResult(const TOidcSession& session, const EStatus& status, const TString& errorMessage);
+    TRestoreOidcSessionResult(const TStatus& status = {.IsSuccess = true, .IsErrorRetryable = false, .ErrorMessage = ""}, const TOidcSession& session = TOidcSession());
 
     bool IsSuccess() const;
 };

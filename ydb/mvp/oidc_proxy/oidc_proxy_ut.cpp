@@ -736,15 +736,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
 
         TAutoPtr<IEventHandle> handle;
         NHttp::TEvHttpProxy::TEvHttpOutgoingResponse* outgoingResponseEv = runtime.GrabEdgeEvent<NHttp::TEvHttpProxy::TEvHttpOutgoingResponse>(handle);
-        UNIT_ASSERT_STRINGS_EQUAL(outgoingResponseEv->Response->Status, "302");
-        const NHttp::THeaders headers(outgoingResponseEv->Response->Headers);
-        UNIT_ASSERT(headers.Has("Location"));
-        TString location = TString(headers.Get("Location"));
-        UNIT_ASSERT_STRING_CONTAINS(location, "https://auth.test.net/oauth/authorize");
-        UNIT_ASSERT_STRING_CONTAINS(location, "response_type=code");
-        UNIT_ASSERT_STRING_CONTAINS(location, "scope=openid");
-        UNIT_ASSERT_STRING_CONTAINS(location, "client_id=" + settings.ClientId);
-        UNIT_ASSERT_STRING_CONTAINS(location, "redirect_uri=https://" + hostProxy + "/auth/callback");
+        UNIT_ASSERT_STRINGS_EQUAL(outgoingResponseEv->Response->Status, "400");
     }
 
     Y_UNIT_TEST(OpenIdConnectotWrongStateAuthorizationFlow) {
@@ -841,8 +833,8 @@ Y_UNIT_TEST_SUITE(Mvp) {
 
         NHttp::THttpIncomingRequestPtr incomingRequestProtectedPage = new NHttp::THttpIncomingRequest();
         TStringBuilder requestProtectedPage;
-        requestProtectedPage << "GET /requested/page HTTP/1.1\r\n"
-                             << "Host: ydb.test.net\r\n";
+        requestProtectedPage << "GET /ydb.test.net/requested/page HTTP/1.1\r\n"
+                             << "Host: oidcproxy.net\r\n";
         EatWholeString(incomingRequestProtectedPage, requestProtectedPage);
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
@@ -879,20 +871,11 @@ Y_UNIT_TEST_SUITE(Mvp) {
                                                     "Content-Length: " + ToString(authorizationServerResponse.length()) + "\r\n\r\n" + authorizationServerResponse);
         runtime.Send(new IEventHandle(handle->Sender, edge, new NHttp::TEvHttpProxy::TEvHttpIncomingResponse(outgoingRequestEv->Request, incomingResponse)));
         auto outgoingResponseEv = runtime.GrabEdgeEvent<NHttp::TEvHttpProxy::TEvHttpOutgoingResponse>(handle);
-        redirectStrategy.CheckRedirectStatus(outgoingResponseEv);
-        TString location = redirectStrategy.GetRedirectUrl(outgoingResponseEv);
-        UNIT_ASSERT_STRING_CONTAINS(location, "https://auth.test.net/oauth/authorize");
-        UNIT_ASSERT_STRING_CONTAINS(location, "response_type=code");
-        UNIT_ASSERT_STRING_CONTAINS(location, "scope=openid");
-        UNIT_ASSERT_STRING_CONTAINS(location, "client_id=" + settings.ClientId);
-        UNIT_ASSERT_STRING_CONTAINS(location, "redirect_uri=https://oidcproxy.net/auth/callback");
-
-        NHttp::TUrlParameters urlParameters(location);
-        const TString newState = urlParameters["state"];
-
-        NHttp::THeaders headers(outgoingResponseEv->Response->Headers);
-        UNIT_ASSERT(headers.Has("Set-Cookie"));
-        redirectStrategy.CheckSpecificHeaders(headers);
+        UNIT_ASSERT_STRINGS_EQUAL(outgoingResponseEv->Response->Status, "302");
+        const NHttp::THeaders headers(outgoingResponseEv->Response->Headers);
+        UNIT_ASSERT(headers.Has("Location"));
+        TStringBuf location = headers.Get("Location");
+        UNIT_ASSERT_STRINGS_EQUAL(location, incomingRequestProtectedPage->URL);
     }
 
     Y_UNIT_TEST(OpenIdConnectSessionServiceCreateAccessTokenInvalid) {
