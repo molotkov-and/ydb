@@ -56,10 +56,7 @@ void THandlerSessionCreateYandex::HandleCreateSession(TEvPrivate::TEvCreateSessi
     for (const auto& cookie : response.Getset_cookie_header()) {
         responseHeaders.Set("Set-Cookie", ChangeSameSiteFieldInSessionCookie(cookie));
     }
-    NHttp::THttpOutgoingResponsePtr httpResponse;
-    responseHeaders.Set("Location", OidcSession.GetRedirectUrl());
-    httpResponse = Request->CreateResponse("302", "Cookie set", responseHeaders);
-    ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
+    RetryRequestToProtectedResource(&responseHeaders, "Cookie set", ctx);
     Die(ctx);
 }
 
@@ -67,15 +64,13 @@ void THandlerSessionCreateYandex::HandleError(TEvPrivate::TEvErrorResponse::TPtr
     LOG_DEBUG_S(ctx, NMVP::EService::MVP, "SessionService.Create(): " << event->Get()->Status);
     NHttp::THttpOutgoingResponsePtr httpResponse;
     if (event->Get()->Status == "400") {
-        NHttp::THeadersBuilder responseHeaders;
-        responseHeaders.Set("Location", OidcSession.GetRedirectUrl());
-        httpResponse = Request->CreateResponse("302", "Cannot fetch cookie from session service", responseHeaders);
+        RetryRequestToProtectedResource("Cannot fetch cookie from session service", ctx);
     } else {
         NHttp::THeadersBuilder responseHeaders;
         responseHeaders.Set("Content-Type", "text/plain");
         httpResponse = Request->CreateResponse( event->Get()->Status, event->Get()->Message, responseHeaders, event->Get()->Details);
+        ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
     }
-    ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
     Die(ctx);
 }
 

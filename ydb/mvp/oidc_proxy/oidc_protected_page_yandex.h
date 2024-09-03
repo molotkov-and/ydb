@@ -49,7 +49,6 @@ public:
 private:
     void StartOidcProcess(const NActors::TActorContext& ctx) override;
     bool NeedSendSecureHttpRequest(const NHttp::THttpIncomingResponsePtr& response) const override;
-    void CreateDbSession(const NActors::TActorContext& ctx) const;
     void SendRequestToWriteOidcSessionInDB(const NActors::TActorContext& ctx);
     void SaveOidcSessionOnClientSide(const NActors::TActorContext& ctx) const;
 };

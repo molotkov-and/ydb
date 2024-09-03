@@ -32,6 +32,12 @@ class THandlerSessionCreate : public NActors::TActorBootstrapped<THandlerSession
 private:
     using TBase = NActors::TActorBootstrapped<THandlerSessionCreate>;
 
+    static const size_t MAX_ATTEMPTS_CREATE_DB_SESSION = 10;
+    // static const size_t MAX_ATTEMPTS_READ_OIDC_SESSION_TO_DB = 10;
+
+    size_t CurrentNumberAttemptsCreateDbSession = 0;
+    // size_t CurrentNumberAttemptsReadOidcSessionToDb = 0;
+
 protected:
     using TSessionService = yandex::cloud::priv::oauth::v1::SessionService;
 
@@ -60,6 +66,14 @@ protected:
     void Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult::TPtr event, const NActors::TActorContext& ctx);
     void Handle(NMVP::THandlerActorYdb::TEvPrivate::TEvDataQueryResult::TPtr event, const NActors::TActorContext& ctx);
     void Handle(NHttp::TEvHttpProxy::TEvHttpIncomingResponse::TPtr event, const NActors::TActorContext& ctx);
+
+    void TryRetryRequestToProtectedResource(bool isErrorRetryable, const NActors::TActorContext& ctx) const;
+    void RetryRequestToProtectedResource(NHttp::THeadersBuilder* responseHeaders, const TString& responseMessage, const NActors::TActorContext& ctx) const;
+    void RetryRequestToProtectedResource(const TString& responseMessage, const NActors::TActorContext& ctx) const;
+
+private:
+    void ReadOidcSessionFromDb(const NActors::TActorContext& ctx);
+    void TryRestoreOidcSessionFromCookie(const NActors::TActorContext& ctx);
 };
 
 }  // NOIDC

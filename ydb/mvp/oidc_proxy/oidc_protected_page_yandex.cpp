@@ -38,7 +38,7 @@ void THandlerSessionServiceCheckYandex::Handle(TEvPrivate::TEvErrorResponse::TPt
     LOG_DEBUG_S(ctx, NMVP::EService::MVP, "SessionService.Check(): " << event->Get()->Status);
     if (event->Get()->Status == "400") {
         if (Settings.StoreSessionsOnServerSideSetting.Enable) {
-            CreateDbSession(ctx);
+            CreateDbSession(Location, Settings.StoreSessionsOnServerSideSetting.AccessTokenName, ctx);
         } else {
             SaveOidcSessionOnClientSide(ctx);
             Die(ctx);
@@ -61,7 +61,7 @@ void THandlerSessionServiceCheckYandex::Handle(NMVP::THandlerActorYdb::TEvPrivat
             DbSession->Close();
         }
         if (CurrentNumberAttemptsCreateDbSession < MAX_ATTEMPTS_CREATE_DB_SESSION) {
-            CreateDbSession(ctx); // Сделать небольшую задержку?
+            CreateDbSession(Location, Settings.StoreSessionsOnServerSideSetting.AccessTokenName, ctx); // Сделать небольшую задержку?
             ++CurrentNumberAttemptsCreateDbSession;
         } else {
             SaveOidcSessionOnClientSide(ctx);
@@ -93,7 +93,6 @@ void THandlerSessionServiceCheckYandex::Handle(NMVP::THandlerActorYdb::TEvPrivat
             SaveOidcSessionOnClientSide(ctx);
             Die(ctx);
         }
-        // Обработать ошибку записи в базу. Сделать повторную попытку
     }
 }
 
@@ -147,19 +146,6 @@ void THandlerSessionServiceCheckYandex::SaveOidcSessionOnClientSide(const NActor
                                                                                 .Settings = Settings,
                                                                                 .NeedStoreSessionOnClientSide = true});
     ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
-}
-
-void THandlerSessionServiceCheckYandex::CreateDbSession(const NActors::TActorContext& ctx) const {
-    NActors::TActorSystem* actorSystem = ctx.ActorSystem();
-    NActors::TActorId actorId = ctx.SelfID;
-    NYdb::NTable::TClientSettings clientTableSettings;
-    clientTableSettings.Database(Location.RootDomain)
-                        .AuthToken(MVPAppData()->Tokenator->GetToken(Settings.StoreSessionsOnServerSideSetting.AccessTokenName));
-    auto tableClient = Location.GetTableClient(clientTableSettings);
-    tableClient.CreateSession().Subscribe([actorId, actorSystem] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
-        NYdb::NTable::TAsyncCreateSessionResult res(result);
-        actorSystem->Send(actorId, new NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult(res.ExtractValue()));
-    });
 }
 
 void THandlerSessionServiceCheckYandex::SendRequestToWriteOidcSessionInDB(const NActors::TActorContext& ctx) {

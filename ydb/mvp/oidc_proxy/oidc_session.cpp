@@ -6,8 +6,8 @@
 #include <openssl/hmac.h>
 #include <openssl/sha.h>
 #include <ydb/public/sdk/cpp/client/ydb_table/table.h>
-#include <ydb/public/sdk/cpp/client/ydb_params/params.h>
-#include <ydb/public/sdk/cpp/client/ydb_types/status/status.h>
+#include <ydb/mvp/core/core_ydb_impl.h>
+#include <ydb/library/actors/core/actor.h>
 #include "oidc_session.h"
 #include "openid_connect.h"
 
@@ -110,6 +110,19 @@ bool TOidcSession::DetectAjaxRequest(const NHttp::THttpIncomingRequestPtr& reque
         }
     }
     return true;
+}
+
+void CreateDbSession(const TYdbLocation& location, const TString& accessToken, const NActors::TActorContext& ctx) {
+    NActors::TActorSystem* actorSystem = ctx.ActorSystem();
+    NActors::TActorId actorId = ctx.SelfID;
+    NYdb::NTable::TClientSettings clientTableSettings;
+    clientTableSettings.Database(location.RootDomain)
+                       .AuthToken(MVPAppData()->Tokenator->GetToken(accessToken));
+    auto tableClient = location.GetTableClient(clientTableSettings);
+    tableClient.CreateSession().Subscribe([actorId, actorSystem] (const NYdb::NTable::TAsyncCreateSessionResult& result) {
+        NYdb::NTable::TAsyncCreateSessionResult res(result);
+        actorSystem->Send(actorId, new NMVP::THandlerActorYdb::TEvPrivate::TEvCreateSessionResult(res.ExtractValue()));
+    });
 }
 
 } // NOIDC

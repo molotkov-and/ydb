@@ -1,13 +1,14 @@
 #pragma once
 
 #include <util/generic/string.h>
-#include <functional>
 #include <ydb/library/actors/http/http.h>
-// #include <ydb/mvp/core/core_ydb.h>
 
-namespace NYdb {
-class TStatus;
+struct TYdbLocation;
+
+namespace NActors {
+    struct TActorContext;
 }
+
 namespace NOIDC {
 
 struct TOpenIdConnectSettings;
@@ -47,5 +48,7 @@ private:
 
     TString GenerateCookie(const TString& secret) const;
 };
+
+void CreateDbSession(const TYdbLocation& location, const TString& accessToken, const NActors::TActorContext& ctx);
 
 } // NOIDC
