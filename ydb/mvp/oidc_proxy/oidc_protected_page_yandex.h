@@ -15,8 +15,13 @@ private:
     using TBase = THandlerSessionServiceCheck;
     using TSessionService = yandex::cloud::priv::oauth::v1::SessionService;
 
+    static const size_t MAX_ATTEMPTS_CREATE_DB_SESSION = 10;
+    static const size_t MAX_ATTEMPTS_WRITE_OIDC_SESSION_TO_DB = 10;
+
     TMaybe<NYdb::NTable::TSession> DbSession;
     TOidcSession OidcSession;
+    size_t CurrentNumberAttemptsCreateDbSession = 0;
+    size_t CurrentNumberAttemptsWriteOidcSessionToDb = 0;
 
 public:
     THandlerSessionServiceCheckYandex(const NActors::TActorId& sender,
@@ -44,6 +49,9 @@ public:
 private:
     void StartOidcProcess(const NActors::TActorContext& ctx) override;
     bool NeedSendSecureHttpRequest(const NHttp::THttpIncomingResponsePtr& response) const override;
+    void CreateDbSession(const NActors::TActorContext& ctx) const;
+    void SendRequestToWriteOidcSessionInDB(const NActors::TActorContext& ctx);
+    void SaveOidcSessionOnClientSide(const NActors::TActorContext& ctx) const;
 };
 
 }  // NOIDC
