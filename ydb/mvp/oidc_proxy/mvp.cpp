@@ -26,7 +26,8 @@
 #include "mvp.h"
 #include "oidc_client.h"
 
-using namespace NMVP;
+namespace NMVP {
+namespace NOIDC {
 
 namespace {
 
@@ -42,7 +43,7 @@ TString AddSchemeToUserToken(const TString& token, const TString& scheme) {
 const ui16 TMVP::DefaultHttpPort = 8788;
 const ui16 TMVP::DefaultHttpsPort = 8789;
 
-const TString& NMVP::GetEServiceName(NActors::NLog::EComponent component) {
+const TString& GetEServiceName(NActors::NLog::EComponent component) {
     static const TString loggerName("LOGGER");
     static const TString mvpName("MVP");
     static const TString grpcName("GRPC");
@@ -415,3 +416,6 @@ THolder<NActors::TActorSystemSetup> TMVP::BuildActorSystemSetup(int argc, char**
 }
 
 TAtomic TMVP::Quit = false;
+
+} // NOIDC
+} // NMVP
