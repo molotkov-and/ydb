@@ -26,6 +26,8 @@
 #include "mvp.h"
 #include "oidc_client.h"
 
+NActors::IActor* CreateMemProfiler();
+
 namespace NMVP {
 namespace NOIDC {
 
@@ -66,8 +68,6 @@ const TString& GetEServiceName(NActors::NLog::EComponent component) {
 void TMVP::OnTerminate(int) {
     AtomicSet(Quit, true);
 }
-
-NActors::IActor* CreateMemProfiler();
 
 int TMVP::Init() {
     ActorSystem.Start();
