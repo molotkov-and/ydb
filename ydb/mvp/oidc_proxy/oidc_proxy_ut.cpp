@@ -1061,7 +1061,7 @@ Y_UNIT_TEST_SUITE(Mvp) {
         };
 
         const NActors::TActorId edge = runtime.AllocateEdgeActor();
-        const NActors::TActorId target = runtime.Register(new NMVP::TProtectedPageHandler(edge, settings));
+        const NActors::TActorId target = runtime.Register(new TProtectedPageHandler(edge, settings));
 
         const TString iamToken {"protected_page_iam_token"};
         NHttp::THttpIncomingRequestPtr incomingRequest = new NHttp::THttpIncomingRequest();

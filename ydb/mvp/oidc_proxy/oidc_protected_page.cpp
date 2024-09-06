@@ -21,7 +21,7 @@ THandlerSessionServiceCheck::THandlerSessionServiceCheck(const NActors::TActorId
 
 void THandlerSessionServiceCheck::Bootstrap(const NActors::TActorContext& ctx) {
     if (!CheckRequestedHost()) {
-        ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(Request->CreateResponseNotFound(NOT_FOUND_HTML_PAGE, "text/html")));
+        ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(CreateResponseForbiddenHost()));
         Die(ctx);
         return;
     }
@@ -53,7 +53,9 @@ void THandlerSessionServiceCheck::HandleProxy(NHttp::TEvHttpProxy::TEvHttpIncomi
             httpResponse = Request->CreateResponse( response->Status, response->Message, headers, response->Body);
         }
     } else {
-        httpResponse = Request->CreateResponseNotFound(NOT_FOUND_HTML_PAGE, "text/html");
+        static constexpr size_t MAX_LOGGED_SIZE = 1024;
+        LOG_DEBUG_S(ctx, EService::MVP, "Can not process request to protected resource:\n" << event->Get()->Request->GetRawData().substr(0, MAX_LOGGED_SIZE));
+        httpResponse = CreateResponseForNotExistingResponseFromProtectedResource(event->Get()->GetError());
     }
     ctx.Send(Sender, new NHttp::TEvHttpProxy::TEvHttpOutgoingResponse(httpResponse));
     Die(ctx);
@@ -190,6 +192,33 @@ TString THandlerSessionServiceCheck::GetFixedLocationHeader(TStringBuf location)
     TStringBuf scheme, host, uri;
     NHttp::CrackURL(ProtectedPageUrl, scheme, host, uri);
     return TStringBuilder() << '/' << host << location;
+}
+
+NHttp::THttpOutgoingResponsePtr THandlerSessionServiceCheck::CreateResponseForbiddenHost() {
+    NHttp::THeadersBuilder headers;
+    headers.Set("Content-Type", "text/html");
+    SetCORS(Request, &headers);
+
+    TStringBuf scheme, host, uri;
+    NHttp::CrackURL(ProtectedPageUrl, scheme, host, uri);
+    TStringBuilder html;
+    html << "<html><head><title>403 Forbidden</title></head><body bgcolor=\"white\"><center><h1>";
+    html << "403 Forbidden host: " << host;
+    html << "</h1></center></body></html>";
+
+    return Request->CreateResponse("403", "Forbidden", headers, html);
+}
+
+NHttp::THttpOutgoingResponsePtr THandlerSessionServiceCheck::CreateResponseForNotExistingResponseFromProtectedResource(const TString& errorMessage) {
+    NHttp::THeadersBuilder headers;
+    headers.Set("Content-Type", "text/html");
+    SetCORS(Request, &headers);
+
+    TStringBuilder html;
+    html << "<html><head><title>400 Bad Request</title></head><body bgcolor=\"white\"><center><h1>";
+    html << "400 Bad Request. Can not process request to protected resource: " << errorMessage;
+    html << "</h1></center></body></html>";
+    return Request->CreateResponse("400", "Bad Request", headers, html);
 }
 
 }  // NOIDC
