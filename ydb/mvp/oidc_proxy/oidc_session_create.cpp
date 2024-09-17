@@ -129,6 +129,7 @@ void THandlerSessionCreate::TryRestoreContextFromHostStorage(const NActors::TAct
     TString state = urlParameters["state"];
     static const TString ERROR_RESTORE_CONTEXT_FROM_HOST = "Restore context from host failed: ";
 
+    LOG_DEBUG_S(ctx, NMVP::EService::MVP, "Find state: " << state);
     std::pair<bool, TContextRecord> restoreContextResult = ContextStorage->Find(state);
     if (restoreContextResult.first) {
         RestoredContext = restoreContextResult.second.GetContext();
@@ -139,6 +140,7 @@ void THandlerSessionCreate::TryRestoreContextFromHostStorage(const NActors::TAct
             LOG_DEBUG_S(ctx, NMVP::EService::MVP, ERROR_RESTORE_CONTEXT_FROM_HOST << "State life time expired");
             RetryRequestToProtectedResourceAndDie(ctx, "Found");
         } else {
+            LOG_DEBUG_S(ctx, NMVP::EService::MVP, "RequestSessionToken");
             RequestSessionToken(code, ctx);
         }
     } else {

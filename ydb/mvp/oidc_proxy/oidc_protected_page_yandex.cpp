@@ -49,26 +49,28 @@ void THandlerSessionServiceCheckYandex::StartOidcProcess(const NActors::TActorCo
 
     std::unique_ptr<NYdbGrpc::TServiceConnection<TSessionService>> connection = CreateGRpcServiceConnection<TSessionService>(Settings.SessionServiceEndpoint);
 
-    NActors::TActorSystem* actorSystem = ctx.ActorSystem();
-    NActors::TActorId actorId = ctx.SelfID;
-    NYdbGrpc::TResponseCallback<yandex::cloud::priv::oauth::v1::CheckSessionResponse> responseCb =
-        [actorId, actorSystem](NYdbGrpc::TGrpcStatus&& status, yandex::cloud::priv::oauth::v1::CheckSessionResponse&& response) -> void {
-        if (status.Ok()) {
-            actorSystem->Send(actorId, new TEvPrivate::TEvCheckSessionResponse(std::move(response)));
-        } else {
-            actorSystem->Send(actorId, new TEvPrivate::TEvErrorResponse(status));
-        }
-    };
+    ctx.Send(ctx.SelfID, new TEvPrivate::TEvErrorResponse(NYdbGrpc::TGrpcStatus(grpc::StatusCode::INVALID_ARGUMENT, "")));
 
-    NMVP::TMvpTokenator* tokenator = MVPAppData()->Tokenator;
-    TString token = "";
-    if (tokenator) {
-        token = tokenator->GetToken(Settings.SessionServiceTokenName);
-    }
-    NYdbGrpc::TCallMeta meta;
-    SetHeader(meta, "authorization", token);
-    meta.Timeout = TDuration::Seconds(10);
-    connection->DoRequest(request, std::move(responseCb), &yandex::cloud::priv::oauth::v1::SessionService::Stub::AsyncCheck, meta);
+    // NActors::TActorSystem* actorSystem = ctx.ActorSystem();
+    // NActors::TActorId actorId = ctx.SelfID;
+    // NYdbGrpc::TResponseCallback<yandex::cloud::priv::oauth::v1::CheckSessionResponse> responseCb =
+    //     [actorId, actorSystem](NYdbGrpc::TGrpcStatus&& status, yandex::cloud::priv::oauth::v1::CheckSessionResponse&& response) -> void {
+    //     if (status.Ok()) {
+    //         actorSystem->Send(actorId, new TEvPrivate::TEvCheckSessionResponse(std::move(response)));
+    //     } else {
+    //         actorSystem->Send(actorId, new TEvPrivate::TEvErrorResponse(status));
+    //     }
+    // };
+
+    // NMVP::TMvpTokenator* tokenator = MVPAppData()->Tokenator;
+    // TString token = "";
+    // if (tokenator) {
+    //     token = tokenator->GetToken(Settings.SessionServiceTokenName);
+    // }
+    // NYdbGrpc::TCallMeta meta;
+    // SetHeader(meta, "authorization", token);
+    // meta.Timeout = TDuration::Seconds(10);
+    // connection->DoRequest(request, std::move(responseCb), &yandex::cloud::priv::oauth::v1::SessionService::Stub::AsyncCheck, meta);
 }
 
 bool THandlerSessionServiceCheckYandex::NeedSendSecureHttpRequest(const NHttp::THttpIncomingResponsePtr& response) const {

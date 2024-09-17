@@ -11,7 +11,7 @@
 namespace NMVP {
 namespace NOIDC {
 
-const TDuration TContext::STATE_LIFE_TIME = TDuration::Minutes(10);
+const TDuration TContext::STATE_LIFE_TIME = TDuration::Minutes(3);
 
 TContext::TContext(const TString& state, const TString& requestedAddress, bool isAjaxRequest)
     : State(state)

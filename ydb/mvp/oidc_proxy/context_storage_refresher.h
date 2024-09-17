@@ -16,7 +16,7 @@ private:
     using TBase = NActors::TActor<TContextStorageRefresher>;
 
     TContextStorage* const ContextStorage;
-    static constexpr TDuration PERIODIC_CHECK = TDuration::Seconds(30);
+    static constexpr TDuration PERIODIC_CHECK = TDuration::Seconds(10);
 
 public:
     TContextStorageRefresher(TContextStorage* const contextStorage);

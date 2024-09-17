@@ -193,6 +193,7 @@ TString TMVP::GetAppropriateEndpoint(const NHttp::THttpIncomingRequestPtr& req) 
 
 NMvp::TTokensConfig TMVP::TokensConfig;
 TOpenIdConnectSettings TMVP::OpenIdConnectSettings;
+TContextStorage TMVP::ContextStorage;
 
 TMVP::TMVP(int argc, char** argv)
     : ActorSystemStoppingLock()

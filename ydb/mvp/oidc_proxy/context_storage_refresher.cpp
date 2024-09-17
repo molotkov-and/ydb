@@ -1,3 +1,4 @@
+#include <ydb/mvp/core/mvp_log.h>
 #include "context_storage_refresher.h"
 #include "context_storage.h"
 
@@ -13,6 +14,7 @@ void TContextStorageRefresher::Bootstrap() {
 }
 
 void TContextStorageRefresher::HandleRefresh() {
+    LOG_DEBUG_S(*NActors::TlsActivationContext, NMVP::EService::MVP, "+++ Refresh storage");
     ContextStorage->Refresh(TInstant::Now());
     Schedule(PERIODIC_CHECK, new NActors::TEvents::TEvWakeup());
 }

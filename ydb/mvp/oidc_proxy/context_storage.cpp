@@ -1,6 +1,7 @@
 #include <mutex>
 #include <utility>
 #include <util/generic/string.h>
+#include <ydb/mvp/core/mvp_log.h>
 #include "context.h"
 #include "context_storage.h"
 
@@ -30,11 +31,17 @@ std::pair<bool, TContextRecord> TContextStorage::Find(const TString& state) {
 }
 
 void TContextStorage::Refresh(TInstant now) {
+    LOG_DEBUG_S(*NActors::TlsActivationContext, NMVP::EService::MVP, "+++ Contexts.size(): " << Contexts.size());
     std::lock_guard<std::mutex> guard(Mutex);
+    if (!RefreshQueue.empty()) {
+        LOG_DEBUG_S(*NActors::TlsActivationContext, NMVP::EService::MVP, "State life time: " << RefreshQueue.top()->second.GetExpirationTime() + Ttl << " , now: " << now);
+    }
     while (!RefreshQueue.empty() && RefreshQueue.top()->second.GetExpirationTime() + Ttl <= now) {
+        Cerr << "+++ Refresh contexts" << Contexts.size() << Endl;
         TString key = RefreshQueue.top()->first;
         RefreshQueue.pop();
         Contexts.erase(key);
+        Cerr << "+++ Contexts.size(): " << Contexts.size() << Endl;
     }
 }
 
