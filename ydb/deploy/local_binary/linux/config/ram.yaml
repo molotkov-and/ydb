@@ -7,7 +7,7 @@ host_configs:
 hosts:
 - host: localhost
   host_config_id: 1
-  port: 19001
+  port: 19011
   walle_location:
     body: 1
     data_center: '1'
@@ -88,5 +88,6 @@ table_service_config:
   sql_version: 1
 grpc_config:
   host: 127.0.0.1
+  port: 2136
 monitoring_config:
   monitoring_address: 127.0.0.1
