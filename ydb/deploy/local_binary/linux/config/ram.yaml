@@ -33,6 +33,8 @@ domains_config:
     ssid: 1
   security_config:
     enforce_user_token_requirement: true
+# auth_config:
+#   domain_login_only: true
 pqconfig:
   check_acl: false
   require_credentials_in_new_protocol: false
@@ -93,3 +95,10 @@ grpc_config:
   port: 2136
 monitoring_config:
   monitoring_address: 127.0.0.1
+log_config:
+  entry:
+  - component: GRPC_PROXY_NO_CONNECT_ACCESS
+    level: 7
+  # default_level: 7
+feature_flags:
+  check_database_access_permission: true
