@@ -1948,6 +1948,11 @@ message TBackgroundCleaningConfig {
     optional TRetrySettings RetrySettings = 5;
 }
 
+message TDataErasureConfig {
+    optional double MaxRate = 1 [default = 0]; // unlimitted
+    optional uint64 InflightLimit = 2 [default = 10]; // TODO: consider more?
+}
+
 message TGraphConfig {
     message TAggregationSettings {
         optional uint64 PeriodToStartSeconds = 1;
@@ -2228,6 +2233,7 @@ message TAppConfig {
     optional TPrioritiesQueueConfig CompPrioritiesConfig = 85;
     optional TSelfManagementConfig SelfManagementConfig = 86;
     optional NKikimrProto.TDataIntegrityTrailsConfig DataIntegrityTrailsConfig = 87;
+    optional TDataErasureConfig DataErasureConfig = 88;
 
     repeated TNamedConfig NamedConfigs = 100;
     optional string ClusterYamlConfig = 101;
