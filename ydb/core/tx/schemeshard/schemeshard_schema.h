@@ -1921,6 +1921,15 @@ struct Schema : NIceDb::Schema {
         >;
     };
 
+    struct DataErasure : Table<114> {
+        struct Generation : Column<1, NScheme::NTypeIds::Uint64> {};
+
+        using TKey = TableKey<Generation>;
+        using TColumns = TableColumns<
+            Generation
+        >;
+    };
+
     using TTables = SchemaTables<
         Paths,
         TxInFlight,
@@ -2033,7 +2042,8 @@ struct Schema : NIceDb::Schema {
         ResourcePool,
         BackupCollection,
         KMeansTreeState,
-        KMeansTreeSample
+        KMeansTreeSample,
+        DataErasure
     >;
 
     static constexpr ui64 SysParam_NextPathId = 1;
