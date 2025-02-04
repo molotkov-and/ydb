@@ -3,6 +3,7 @@
 #include "schemeshard_svp_migration.h"
 #include "olap/bg_tasks/adapter/adapter.h"
 #include "olap/bg_tasks/events/global.h"
+#include "schemeshard_data_erasure_scheduler.h"
 
 #include <ydb/core/tablet_flat/tablet_flat_executed.h>
 #include <ydb/core/tablet/tablet_counters_aggregator.h>
@@ -2244,6 +2245,11 @@ void TSchemeShard::PersistRemoveSubDomain(NIceDb::TNiceDb& db, const TPathId& pa
 
         for (const auto& pool : subDomain->GetStoragePools()) {
             db.Table<Schema::StoragePools>().Key(pathId.LocalPathId, pool.GetName(), pool.GetKind()).Delete();
+        }
+
+        if (RequestedDataErasureForTenants.contains(pathId)) {
+            db.Table<Schema::DataErasure>().Key(pathId.OwnerId, pathId.LocalPathId).Delete();
+            RequestedDataErasureForTenants.erase(pathId);
         }
 
         db.Table<Schema::SubDomains>().Key(pathId.LocalPathId).Delete();
@@ -7414,6 +7420,7 @@ void TSchemeShard::ConfigureDataErasure(
     const TActorContext& ctx)
 {
     if (IsDomainSchemeShard) {
+        DataErasureScheduler = new TDataErasureScheduler(SelfId());
         ConfigureDataErasureQueue(config, ctx);
     } else {
         ConfigureTenantDataErasureQueue(config, ctx);
@@ -7536,7 +7543,14 @@ void TSchemeShard::StartStopCompactionQueues() {
 void TSchemeShard::StartDataErasure(const TActorContext& ctx) {
     if (IsDomainSchemeShard) {
         DataErasureQueue->Start();
-        Execute(CreateTxRunDataErasure(DataErasureGeneration), ctx);
+        if (DataErasureScheduler->NeedInitialize()) {
+            Execute(CreateTxDataErasureSchedulerInit(), ctx);
+        }
+        if (DataErasureScheduler->IsDataErasureInFlight()) {
+            DataErasureScheduler->ContinueDataErasure(ctx);
+        } else {
+            DataErasureScheduler->ScheduleDataErasureWakeup(ctx);
+        }
     } else {
         TenantDataErasureQueue->Start();
     }
@@ -7650,6 +7664,10 @@ void TSchemeShard::Handle(TEvSchemeShard::TEvLogin::TPtr &ev, const TActorContex
 
 void TSchemeShard::Handle(TEvSchemeShard::TEvListUsers::TPtr &ev, const TActorContext &ctx) {
     Execute(CreateTxListUsers(ev), ctx);
+}
+
+void TSchemeShard::Handle(TEvSchemeShard::TEvRunDataErasure::TPtr& ev, const TActorContext& ctx) {
+    Execute(CreateTxRunDataErasure(ev->Get()->Generation), ctx);
 }
 
 void TSchemeShard::Handle(TEvTxProxySchemeCache::TEvNavigateKeySetResult::TPtr& ev, const TActorContext&) {
