@@ -2060,7 +2060,8 @@ struct Schema : NIceDb::Schema {
         BackupCollection,
         KMeansTreeState,
         KMeansTreeSample,
-        DataErasure
+        DataErasure,
+        DataErasureScheduler
     >;
 
     static constexpr ui64 SysParam_NextPathId = 1;
