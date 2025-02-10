@@ -128,6 +128,8 @@ void TSchemeShard::ActivateAfterInitialization(const TActorContext& ctx, TActiva
     StartStopCompactionQueues();
     BackgroundCleaningQueue->Start();
 
+    StartDataErasure(ctx);
+
     ctx.Send(TxAllocatorClient, MakeHolder<TEvTxAllocatorClient::TEvAllocate>(InitiateCachedTxIdsCount));
 
     InitializeStatistics(ctx);
@@ -2247,9 +2249,9 @@ void TSchemeShard::PersistRemoveSubDomain(NIceDb::TNiceDb& db, const TPathId& pa
             db.Table<Schema::StoragePools>().Key(pathId.LocalPathId, pool.GetName(), pool.GetKind()).Delete();
         }
 
-        if (RequestedDataErasureForTenants.contains(pathId)) {
+        if (RunningDataErasureForTenants.contains(pathId)) {
             db.Table<Schema::DataErasure>().Key(pathId.OwnerId, pathId.LocalPathId).Delete();
-            RequestedDataErasureForTenants.erase(pathId);
+            RunningDataErasureForTenants.erase(pathId);
         }
 
         db.Table<Schema::SubDomains>().Key(pathId.LocalPathId).Delete();
@@ -4709,7 +4711,7 @@ void TSchemeShard::StateInit(STFUNC_SIG) {
 }
 
 void TSchemeShard::StateConfigure(STFUNC_SIG) {
-    SelfPinger->OnAnyEvent(this->ActorContext());
+    // SelfPinger->OnAnyEvent(this->ActorContext());
 
     TRACE_EVENT(NKikimrServices::FLAT_TX_SCHEMESHARD);
     switch (ev->GetTypeRewrite()) {
@@ -4722,8 +4724,11 @@ void TSchemeShard::StateConfigure(STFUNC_SIG) {
         HFuncTraced(TEvSchemeShard::TEvMigrateSchemeShard, Handle);
         HFuncTraced(TEvSchemeShard::TEvPublishTenantAsReadOnly, Handle);
 
-        HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
-        HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
+
+        HFuncTraced(TEvSchemeShard::TEvWakeupToRunDataErasure, DataErasureScheduler->Handle);
+        HFuncTraced(TEvSchemeShard::TEvCompleteDataErasure, DataErasureScheduler->Handle);
 
         //operation initiate msg, must return error
         HFuncTraced(TEvSchemeShard::TEvModifySchemeTransaction, Handle);
@@ -4753,7 +4758,7 @@ void TSchemeShard::StateConfigure(STFUNC_SIG) {
 }
 
 void TSchemeShard::StateWork(STFUNC_SIG) {
-    SelfPinger->OnAnyEvent(this->ActorContext());
+    // SelfPinger->OnAnyEvent(this->ActorContext());
 
     TRACE_EVENT(NKikimrServices::FLAT_TX_SCHEMESHARD);
     switch (ev->GetTypeRewrite()) {
@@ -4762,8 +4767,16 @@ void TSchemeShard::StateWork(STFUNC_SIG) {
         HFuncTraced(NKikimr::NOlap::NBackground::TEvExecuteGeneralLocalTransaction, Handle);
         HFuncTraced(NKikimr::NOlap::NBackground::TEvRemoveSession, Handle);
 
-        HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
-        HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
+
+        HFuncTraced(TEvSchemeShard::TEvWakeupToRunDataErasure, DataErasureScheduler->Handle);
+        HFuncTraced(TEvSchemeShard::TEvCompleteDataErasure, DataErasureScheduler->Handle);
+
+        HFuncTraced(TEvSchemeShard::TEvRunDataErasure, Handle);
+        HFuncTraced(TEvSchemeShard::TEvDataClenupRequest, Handle);
+        HFuncTraced(TEvDataShard::TEvForceDataCleanupResult, Handle);
+        HFuncTraced(TEvSchemeShard::TEvDataCleanupResult, Handle);
 
         //operation initiate msg
         HFuncTraced(TEvSchemeShard::TEvModifySchemeTransaction, Handle);
@@ -7541,14 +7554,25 @@ void TSchemeShard::StartStopCompactionQueues() {
 }
 
 void TSchemeShard::StartDataErasure(const TActorContext& ctx) {
+    LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+        "+++ StartDataErasure"
+        << ", schemeshardId: " << SelfTabletId());
     if (IsDomainSchemeShard) {
+        LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+            "+++ StartDataErasure: is domain schemeshard");
         DataErasureQueue->Start();
         if (DataErasureScheduler->NeedInitialize()) {
+            LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                "+++ StartDataErasure: need initialize scheduler");
             Execute(CreateTxDataErasureSchedulerInit(), ctx);
         }
+        LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+            "+++ StartDataErasure: after initialize scheduler");
         if (DataErasureScheduler->IsDataErasureInFlight()) {
             DataErasureScheduler->ContinueDataErasure(ctx);
         } else {
+            LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                "+++ StartDataErasure: ScheduleDataErasureWakeup");
             DataErasureScheduler->ScheduleDataErasureWakeup(ctx);
         }
     } else {
@@ -7667,6 +7691,9 @@ void TSchemeShard::Handle(TEvSchemeShard::TEvListUsers::TPtr &ev, const TActorCo
 }
 
 void TSchemeShard::Handle(TEvSchemeShard::TEvRunDataErasure::TPtr& ev, const TActorContext& ctx) {
+    LOG_DEBUG_S(TlsActivationContext->AsActorContext(), NKikimrServices::FLAT_TX_SCHEMESHARD,
+        "+++Handle TEvRunDataErasure"
+        << ", at schemeshard: " << TabletID());
     Execute(CreateTxRunDataErasure(ev->Get()->Generation), ctx);
 }
 
