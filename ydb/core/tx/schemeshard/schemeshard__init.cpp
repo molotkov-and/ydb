@@ -1875,7 +1875,6 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                     }
                     if (rowset.EndOfSet()) {
                         Self->DataErasureScheduler->Restore({.IsInitialized = false, .StartTime = AppData(ctx)->TimeProvider->Now()}, ctx);
-                        LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD, "+++ DataErasureScheduler is not initialized");
                     } else {
                         ui64 currentGeneration = 0;
                         TInstant startTime;
@@ -1892,9 +1891,6 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                                                             .Generation = currentGeneration,
                                                             .DataErasureInFlight = !isCompleted,
                                                             .StartTime = startTime}, ctx);
-                        LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD, "+++ DataErasureScheduler: generation# " << currentGeneration
-                                                                                << ", DataErasureInFlight# " << !isCompleted
-                                                                                << ", DataErasureStartTime# " << startTime);
                         Self->DataErasureGeneration = currentGeneration;
                     }
                 }
