@@ -4637,6 +4637,7 @@ void TSchemeShard::OnActivateExecutor(const TActorContext &ctx) {
     EnableTableDatetime64 = appData->FeatureFlags.GetEnableTableDatetime64();
     EnableVectorIndex = appData->FeatureFlags.GetEnableVectorIndex();
     EnableParameterizedDecimal = appData->FeatureFlags.GetEnableParameterizedDecimal();
+    EnableDataErasure = appData->FeatureFlags.GetEnableDataErasure();
 
     ConfigureCompactionQueues(appData->CompactionConfig, ctx);
     ConfigureStatsBatching(appData->SchemeShardConfig, ctx);
@@ -7242,6 +7243,8 @@ void TSchemeShard::ApplyConsoleConfigs(const NKikimrConfig::TAppConfig& appConfi
         if (BackgroundCleaningQueue) {
             BackgroundCleaningQueue->Start();
         }
+
+        StartDataErasure(ctx);
     }
 }
 
@@ -7272,6 +7275,7 @@ void TSchemeShard::ApplyConsoleConfigs(const NKikimrConfig::TFeatureFlags& featu
     EnableVectorIndex = featureFlags.GetEnableVectorIndex();
     EnableExternalDataSourcesOnServerless = featureFlags.GetEnableExternalDataSourcesOnServerless();
     EnableParameterizedDecimal = featureFlags.GetEnableParameterizedDecimal();
+    EnableDataErasure = featureFlags.GetEnableDataErasure();
 }
 
 void TSchemeShard::ConfigureStatsBatching(const NKikimrConfig::TSchemeShardConfig& config, const TActorContext& ctx) {
@@ -7556,18 +7560,26 @@ void TSchemeShard::StartStopCompactionQueues() {
 }
 
 void TSchemeShard::StartDataErasure(const TActorContext& ctx) {
-    if (IsDomainSchemeShard) {
-        DataErasureQueue->Start();
-        if (DataErasureScheduler->NeedInitialize()) {
-            Execute(CreateTxDataErasureSchedulerInit(), ctx);
-        }
-        if (DataErasureScheduler->IsDataErasureInFlight()) {
-            DataErasureScheduler->ContinueDataErasure(ctx);
+    if (EnableDataErasure) {
+        if (IsDomainSchemeShard) {
+            DataErasureQueue->Start();
+            if (DataErasureScheduler->NeedInitialize()) {
+                Execute(CreateTxDataErasureSchedulerInit(), ctx);
+            }
+            if (DataErasureScheduler->IsDataErasureInFlight()) {
+                DataErasureScheduler->ContinueDataErasure(ctx);
+            } else {
+                DataErasureScheduler->ScheduleDataErasureWakeup(ctx);
+            }
         } else {
-            DataErasureScheduler->ScheduleDataErasureWakeup(ctx);
+            TenantDataErasureQueue->Start();
         }
     } else {
-        TenantDataErasureQueue->Start();
+        if (IsDomainSchemeShard) {
+            DataErasureQueue->Stop();
+        } else {
+            TenantDataErasureQueue->Stop();
+        }
     }
 }
 
