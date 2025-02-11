@@ -4778,6 +4778,7 @@ void TSchemeShard::StateWork(STFUNC_SIG) {
         HFuncTraced(TEvDataShard::TEvForceDataCleanupResult, Handle);
         HFuncTraced(TEvSchemeShard::TEvDataCleanupResult, Handle);
         HFuncTraced(TEvSchemeShard::TEvDataErasureInfoRequest, Handle);
+        HFuncTraced(TEvBlobStorage::TEvControllerShredResponse, Handle);
 
         //operation initiate msg
         HFuncTraced(TEvSchemeShard::TEvModifySchemeTransaction, Handle);
