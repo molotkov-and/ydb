@@ -3,7 +3,16 @@
 namespace NKikimr::NSchemeShard {
 
 void TSchemeShard::Handle(TEvSchemeShard::TEvTenantDataErasureRequest::TPtr& ev, const TActorContext& ctx) {
-    Execute(CreateTxRunTenantDataErasure(ev), ctx);
+    // Execute(CreateTxRunTenantDataErasure(ev), ctx);
+    std::unique_ptr<TEvSchemeShard::TEvTenantDataErasureResponse> response(
+        new TEvSchemeShard::TEvTenantDataErasureResponse(ParentDomainId, ev->Get()->Record.GetGeneration(), TEvSchemeShard::TEvTenantDataErasureResponse::EStatus::COMPLETED));
+
+    const ui64 rootSchemeshard = ParentDomainId.OwnerId;
+
+    PipeClientCache->Send(
+        ctx,
+        ui64(rootSchemeshard),
+        response.release());
 }
 
 NOperationQueue::EStartStatus TSchemeShard::StartTenantDataErasure(const TShardIdx& shardIdx) {

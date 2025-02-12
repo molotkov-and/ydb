@@ -1870,11 +1870,17 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
             if (Self->IsDomainSchemeShard) {
                 {
                     auto rowset = db.Table<Schema::DataErasureScheduler>().Range().Select();
+                    LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                        "+++ TTxInit for DATA erasure root schemeshard [DataErasureScheduler]"
+                             << ", at schemeshard: " << Self->TabletID());
                     if (!rowset.IsReady()) {
                         return false;
                     }
                     if (rowset.EndOfSet()) {
                         Self->DataErasureScheduler->Restore({.IsInitialized = false, .StartTime = AppData(ctx)->TimeProvider->Now()}, ctx);
+                        LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                            "+++ TTxInit for DATA erasure root schemeshard [DataErasureScheduler empty]"
+                                 << ", at schemeshard: " << Self->TabletID());
                     } else {
                         ui64 currentGeneration = 0;
                         TInstant startTime;
@@ -1890,17 +1896,29 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                                         status = static_cast<TDataErasureScheduler::EStatus>(statusValue);
                                 }
                             }
+
+                            if (!rowset.Next()) {
+                                return false;
+                            }
                         }
                         Self->DataErasureScheduler->Restore({.IsInitialized = true,
                                                             .Generation = currentGeneration,
                                                             .Status = status,
                                                             .StartTime = startTime}, ctx);
                         Self->DataErasureGeneration = currentGeneration;
+                        LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                            "+++ TTxInit for DATA erasure root schemeshard [DataErasureScheduler]"
+                            << " generation: " << currentGeneration
+                            << " startTime: " << startTime
+                                 << ", at schemeshard: " << Self->TabletID());
                     }
                 }
 
                 {
                     auto rowset = db.Table<Schema::ActiveDataErasureTenants>().Range().Select();
+                    LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                        "+++ TTxInit for DATA erasure root schemeshard [ActiveDataErasureTenants]"
+                             << ", at schemeshard: " << Self->TabletID());
                     if (!rowset.IsReady())
                         return false;
                     while (!rowset.EndOfSet()) {
@@ -1921,11 +1939,18 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                         }
 
                         Self->ActiveDataErasureTenants[pathId] = status;
+
+                        if (!rowset.Next()) {
+                            return false;
+                        }
                     }
                 }
             } else {
                 {
                     auto rowset = db.Table<Schema::TenantDataErasure>().Range().Select();
+                    LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                        "+++ TTxInit for DATA erasure [TenantDataErasure]"
+                             << ", at schemeshard: " << Self->TabletID());
                     if (!rowset.IsReady()) {
                         return false;
                     }
@@ -1941,11 +1966,18 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                             }
                             Self->DataErasureStatus = status;
                         }
+
+                        if (!rowset.Next()) {
+                            return false;
+                        }
                     }
                 }
 
                 {
                     auto rowset = db.Table<Schema::ActiveDataErasureShards>().Range().Select();
+                    LOG_NOTICE_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+                        "+++ TTxInit for DATA erasure [ActiveDataErasureShards]"
+                             << ", at schemeshard: " << Self->TabletID());
                     if (!rowset.IsReady()) {
                         return false;
                     }
@@ -1961,6 +1993,10 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
                                 status = static_cast<TSchemeShard::EDataErasureStatus>(statusValue);
                         }
                         Self->ActiveDataErasureShards[shardId] = status;
+
+                        if (!rowset.Next()) {
+                            return false;
+                        }
                     }
                 }
             }

@@ -163,11 +163,13 @@ void TSchemeShard::Handle(TEvSchemeShard::TEvTenantDataErasureResponse::TPtr& ev
 
     if (isDataErasureCompleted) {
         LOG_INFO_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD, "Data erasure in tenants is completed. Send request to BS controller");
-        DataErasureScheduler->SetStatus(TDataErasureScheduler::EStatus::IN_PROGRESS_BSC);
-        std::unique_ptr<TEvBlobStorage::TEvControllerShredRequest> request(
-            new TEvBlobStorage::TEvControllerShredRequest(DataErasureGeneration));
+        // DataErasureScheduler->SetStatus(TDataErasureScheduler::EStatus::IN_PROGRESS_BSC);
+        // std::unique_ptr<TEvBlobStorage::TEvControllerShredRequest> request(
+        //     new TEvBlobStorage::TEvControllerShredRequest(DataErasureGeneration));
 
-        PipeClientCache->Send(ctx, MakeBSControllerID(), request.release());
+        // PipeClientCache->Send(ctx, MakeBSControllerID(), request.release());
+
+        DataErasureScheduler->CompleteDataErasure(ctx);
     }
 }
 
