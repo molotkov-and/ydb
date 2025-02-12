@@ -7439,7 +7439,7 @@ void TSchemeShard::ConfigureDataErasure(
     const TActorContext& ctx)
 {
     if (IsDomainSchemeShard) {
-        DataErasureScheduler = new TDataErasureScheduler(SelfId());
+        DataErasureScheduler = new TDataErasureScheduler(SelfId(), TDuration::Seconds(config.GetDataErasureIntervalSeconds()));
         ConfigureDataErasureQueue(config, ctx);
     } else {
         ConfigureTenantDataErasureQueue(config, ctx);
@@ -7455,6 +7455,7 @@ void TSchemeShard::ConfigureDataErasureQueue(
     dataErasureConfig.IsCircular = false;
     dataErasureConfig.MaxRate = config.GetMaxRate();
     dataErasureConfig.InflightLimit = config.GetInflightLimit();
+    dataErasureConfig.Timeout = TDuration::Seconds(config.GetTimeoutSeconds());
 
     if (DataErasureQueue) {
         DataErasureQueue->UpdateConfig(dataErasureConfig);
@@ -7481,6 +7482,7 @@ void TSchemeShard::ConfigureTenantDataErasureQueue(
     tenantDataErasureConfig.IsCircular = false;
     tenantDataErasureConfig.MaxRate = config.GetMaxRate();
     tenantDataErasureConfig.InflightLimit = config.GetInflightLimit();
+    tenantDataErasureConfig.Timeout = TDuration::Seconds(config.GetTimeoutSeconds());
 
     if (TenantDataErasureQueue) {
         TenantDataErasureQueue->UpdateConfig(tenantDataErasureConfig);
