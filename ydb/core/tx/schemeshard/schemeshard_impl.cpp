@@ -4713,7 +4713,7 @@ void TSchemeShard::StateInit(STFUNC_SIG) {
 }
 
 void TSchemeShard::StateConfigure(STFUNC_SIG) {
-    SelfPinger->OnAnyEvent(this->ActorContext());
+    // SelfPinger->OnAnyEvent(this->ActorContext());
 
     TRACE_EVENT(NKikimrServices::FLAT_TX_SCHEMESHARD);
     switch (ev->GetTypeRewrite()) {
@@ -4726,11 +4726,8 @@ void TSchemeShard::StateConfigure(STFUNC_SIG) {
         HFuncTraced(TEvSchemeShard::TEvMigrateSchemeShard, Handle);
         HFuncTraced(TEvSchemeShard::TEvPublishTenantAsReadOnly, Handle);
 
-        HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
-        HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
-
-        HFuncTraced(TEvSchemeShard::TEvWakeupToRunDataErasure, DataErasureScheduler->Handle);
-        HFuncTraced(TEvSchemeShard::TEvCompleteDataErasure, DataErasureScheduler->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
 
         //operation initiate msg, must return error
         HFuncTraced(TEvSchemeShard::TEvModifySchemeTransaction, Handle);
@@ -4760,7 +4757,7 @@ void TSchemeShard::StateConfigure(STFUNC_SIG) {
 }
 
 void TSchemeShard::StateWork(STFUNC_SIG) {
-    SelfPinger->OnAnyEvent(this->ActorContext());
+    // SelfPinger->OnAnyEvent(this->ActorContext());
 
     TRACE_EVENT(NKikimrServices::FLAT_TX_SCHEMESHARD);
     switch (ev->GetTypeRewrite()) {
@@ -4769,11 +4766,10 @@ void TSchemeShard::StateWork(STFUNC_SIG) {
         HFuncTraced(NKikimr::NOlap::NBackground::TEvExecuteGeneralLocalTransaction, Handle);
         HFuncTraced(NKikimr::NOlap::NBackground::TEvRemoveSession, Handle);
 
-        HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
-        HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvMeasureSelfResponseTime, SelfPinger->Handle);
+        // HFuncTraced(TEvSchemeShard::TEvWakeupToMeasureSelfResponseTime, SelfPinger->Handle);
 
         HFuncTraced(TEvSchemeShard::TEvWakeupToRunDataErasure, DataErasureScheduler->Handle);
-        HFuncTraced(TEvSchemeShard::TEvCompleteDataErasure, DataErasureScheduler->Handle);
 
         HFuncTraced(TEvSchemeShard::TEvRunDataErasure, Handle);
         HFuncTraced(TEvSchemeShard::TEvTenantDataErasureRequest, Handle);
@@ -7440,7 +7436,8 @@ void TSchemeShard::ConfigureDataErasure(
     const TActorContext& ctx)
 {
     if (IsDomainSchemeShard) {
-        DataErasureScheduler = new TDataErasureScheduler(SelfId(), TDuration::Seconds(config.GetDataErasureIntervalSeconds()));
+        DataErasureScheduler = new TDataErasureScheduler(SelfId(), TDuration::Seconds(config.GetDataErasureIntervalSeconds()),
+                                                        TDuration::Seconds(config.GetBlobStorageControllerRequestIntervalSeconds()));
         ConfigureDataErasureQueue(config, ctx);
     } else {
         ConfigureTenantDataErasureQueue(config, ctx);
@@ -7569,7 +7566,7 @@ void TSchemeShard::StartDataErasure(const TActorContext& ctx) {
             if (DataErasureScheduler->NeedInitialize()) {
                 Execute(CreateTxDataErasureSchedulerInit(), ctx);
             }
-            if (DataErasureScheduler->GetStatus() == TDataErasureScheduler::EStatus::IN_PROGRESS_TENANTS ||
+            if (DataErasureScheduler->GetStatus() == TDataErasureScheduler::EStatus::IN_PROGRESS_TENANT ||
                 DataErasureScheduler->GetStatus() == TDataErasureScheduler::EStatus::IN_PROGRESS_BSC) {
                 DataErasureScheduler->ContinueDataErasure(ctx);
             } else {
@@ -7710,9 +7707,11 @@ void TSchemeShard::Handle(TEvSchemeShard::TEvDataErasureInfoRequest::TPtr& ev, c
     case TDataErasureScheduler::EStatus::COMPLETED:
         status = TEvSchemeShard::TEvDataErasureInfoResponse::EStatus::COMPLETED;
         break;
-    case TDataErasureScheduler::EStatus::IN_PROGRESS_TENANTS:
+    case TDataErasureScheduler::EStatus::IN_PROGRESS_TENANT:
+        status = TEvSchemeShard::TEvDataErasureInfoResponse::EStatus::IN_PROGRESS_TENANT;
+        break;
     case TDataErasureScheduler::EStatus::IN_PROGRESS_BSC:
-        status = TEvSchemeShard::TEvDataErasureInfoResponse::EStatus::IN_PROGRESS;
+        status = TEvSchemeShard::TEvDataErasureInfoResponse::EStatus::IN_PROGRESS_BSC;
         break;
     }
     ctx.Send(ev->Sender, new TEvSchemeShard::TEvDataErasureInfoResponse(DataErasureScheduler->GetGeneration(), status));

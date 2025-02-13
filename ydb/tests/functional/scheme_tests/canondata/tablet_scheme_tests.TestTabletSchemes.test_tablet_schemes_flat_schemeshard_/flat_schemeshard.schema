@@ -8138,8 +8138,8 @@
             },
             {
                 "ColumnId": 2,
-                "ColumnName": "IsCompleted",
-                "ColumnType": "Bool"
+                "ColumnName": "Status",
+                "ColumnType": "Uint32"
             },
             {
                 "ColumnId": 3,
@@ -8194,8 +8194,8 @@
             },
             {
                 "ColumnId": 3,
-                "ColumnName": "IsCompleted",
-                "ColumnType": "Bool"
+                "ColumnName": "Status",
+                "ColumnType": "Uint32"
             }
         ],
         "ColumnsDropped": [],
@@ -8239,8 +8239,8 @@
             },
             {
                 "ColumnId": 2,
-                "ColumnName": "IsCompleted",
-                "ColumnType": "Bool"
+                "ColumnName": "Status",
+                "ColumnType": "Uint32"
             }
         ],
         "ColumnsDropped": [],
@@ -8289,8 +8289,8 @@
             },
             {
                 "ColumnId": 3,
-                "ColumnName": "IsCompleted",
-                "ColumnType": "Bool"
+                "ColumnName": "Status",
+                "ColumnType": "Uint32"
             }
         ],
         "ColumnsDropped": [],
