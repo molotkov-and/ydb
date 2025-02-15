@@ -91,7 +91,7 @@ Y_UNIT_TEST_SUITE(TestDataErasure) {
         TAutoPtr<IEventHandle> handle;
         auto response = runtime.GrabEdgeEventRethrow<TEvSchemeShard::TEvDataErasureInfoResponse>(handle);
 
-        UNIT_ASSERT_EQUAL(response->Record.GetGeneration(), 1);
+        UNIT_ASSERT_EQUAL_C(response->Record.GetGeneration(), 1, "+++: " << response->Record.GetGeneration());
         UNIT_ASSERT_EQUAL(response->Record.GetStatus(), NKikimrScheme::TEvDataErasureInfoResponse::IN_PROGRESS_BSC);
     }
 }

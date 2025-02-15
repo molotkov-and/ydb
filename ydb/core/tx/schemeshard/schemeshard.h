@@ -103,7 +103,6 @@ namespace TEvSchemeShard {
         EvWakeupToRunDataErasure,
         EvMeasureDataErasureBSC,
         EvWakeupToRunDataErasureBSC,
-        EvRunDataErasure,
         EvCompleteDataErasure,
         EvDataErasureInfoRequest,
         EvDataErasureInfoResponse,
@@ -687,16 +686,6 @@ namespace TEvSchemeShard {
 
     struct TEvListUsersResult : TEventPB<TEvListUsersResult, NKikimrScheme::TEvListUsersResult, EvListUsersResult> {
         TEvListUsersResult() = default;
-    };
-
-    struct TEvRunDataErasure : TEventLocal<TEvRunDataErasure, EvRunDataErasure> {
-        const ui64 Generation;
-        const TInstant StartTime;
-
-        TEvRunDataErasure(ui64 generation, const TInstant& startTime)
-            : Generation(generation)
-            , StartTime(startTime)
-        {}
     };
 
     struct TEvTenantDataErasureRequest : TEventPB<TEvTenantDataErasureRequest, NKikimrScheme::TEvTenantDataErasureRequest, EvTenantDataErasureRequest> {

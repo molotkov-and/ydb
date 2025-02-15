@@ -64,6 +64,7 @@ SRCS(
     defs.h
     operation_queue_timer.h
     schemeshard.cpp
+    data_erasure_manager.cpp
     schemeshard__background_cleaning.cpp
     schemeshard__background_compaction.cpp
     schemeshard__backup_collection_common.cpp
@@ -200,8 +201,8 @@ SRCS(
     schemeshard__unmark_restore_tables.cpp
     schemeshard__upgrade_access_database.cpp
     schemeshard__upgrade_schema.cpp
-    schemeshard__data_erasure.cpp
-    schemeshard__tenant_data_erasure.cpp
+    schemeshard__root_data_erasure_manager.cpp
+    schemeshard__tenant_data_erasure_manager.cpp
     schemeshard_audit_log.cpp
     schemeshard_audit_log_fragment.cpp
     schemeshard_backup.cpp
@@ -217,7 +218,6 @@ SRCS(
     schemeshard_build_index_tx_base.cpp
     schemeshard_cdc_stream_common.cpp
     schemeshard_cdc_stream_scan.cpp
-    schemeshard_data_erasure_scheduler.cpp
     schemeshard_domain_links.cpp
     schemeshard_domain_links.h
     schemeshard_effective_acl.cpp
