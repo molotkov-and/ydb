@@ -8126,7 +8126,7 @@
     },
     {
         "TableId": 114,
-        "TableName": "DataErasureScheduler",
+        "TableName": "DataErasureGenerations",
         "TableKey": [
             1
         ],
@@ -8176,7 +8176,7 @@
     },
     {
         "TableId": 115,
-        "TableName": "ActiveDataErasureTenants",
+        "TableName": "WaitingDataErasureTenants",
         "TableKey": [
             1,
             2
@@ -8227,7 +8227,7 @@
     },
     {
         "TableId": 116,
-        "TableName": "TenantDataErasure",
+        "TableName": "TenantDataErasureGenerations",
         "TableKey": [
             1
         ],
@@ -8271,7 +8271,7 @@
     },
     {
         "TableId": 117,
-        "TableName": "ActiveDataErasureShards",
+        "TableName": "WaitingDataErasureShards",
         "TableKey": [
             1,
             2

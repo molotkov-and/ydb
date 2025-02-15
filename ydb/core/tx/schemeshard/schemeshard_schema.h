@@ -1921,7 +1921,7 @@ struct Schema : NIceDb::Schema {
         >;
     };
 
-    struct DataErasureStarts : Table<114> {
+    struct DataErasureGenerations : Table<114> {
         struct Generation : Column<1, NScheme::NTypeIds::Uint64> {};
         struct Status : Column<2, NScheme::NTypeIds::Uint32> {};
         struct StartTime : Column<3, NScheme::NTypeIds::Timestamp> {};
@@ -1934,7 +1934,7 @@ struct Schema : NIceDb::Schema {
         >;
     };
 
-    struct ActiveDataErasureTenants : Table<115> {
+    struct WaitingDataErasureTenants : Table<115> {
         struct OwnerPathId : Column<1, NScheme::NTypeIds::Uint64> { using Type = TOwnerId; };
         struct LocalPathId : Column<2, NScheme::NTypeIds::Uint64> { using Type = TLocalPathId; };
         struct Status : Column<3, NScheme::NTypeIds::Uint32> {};
@@ -1947,7 +1947,7 @@ struct Schema : NIceDb::Schema {
         >;
     };
 
-    struct TenantDataErasureStarts : Table<116> {
+    struct TenantDataErasureGenerations : Table<116> {
         struct Generation : Column<1, NScheme::NTypeIds::Uint64> {};
         struct Status : Column<2, NScheme::NTypeIds::Uint32> {};
 
@@ -1958,7 +1958,7 @@ struct Schema : NIceDb::Schema {
         >;
     };
 
-    struct ActiveDataErasureShards : Table<117> {
+    struct WaitingDataErasureShards : Table<117> {
         struct OwnerShardIdx :  Column<1, NScheme::NTypeIds::Uint64> { using Type = TOwnerId; };
         struct LocalShardIdx :  Column<2, NScheme::NTypeIds::Uint64> { using Type = TLocalShardIdx; };
         struct Status : Column<3, NScheme::NTypeIds::Uint32> {};
@@ -2084,10 +2084,10 @@ struct Schema : NIceDb::Schema {
         BackupCollection,
         KMeansTreeState,
         KMeansTreeSample,
-        DataErasureStarts,
-        ActiveDataErasureTenants,
-        TenantDataErasureStarts,
-        ActiveDataErasureShards
+        DataErasureGenerations,
+        WaitingDataErasureTenants,
+        TenantDataErasureGenerations,
+        WaitingDataErasureShards
     >;
 
     static constexpr ui64 SysParam_NextPathId = 1;
