@@ -95,6 +95,7 @@ grpc_config:
   port: 2136
 monitoring_config:
   monitoring_address: 127.0.0.1
+  monitoring_port: 8765
 log_config:
   entry:
   - component: GRPC_PROXY_NO_CONNECT_ACCESS

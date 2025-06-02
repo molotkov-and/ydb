@@ -107,4 +107,6 @@ Database started. Connection options for YDB CLI:
 
 static node: -e grpc://localhost:2136 -d /Root/test
 dynamic node: -e grpc://localhost:31001 -d /Root/test
+
+ssh tunnel: ssh -L 8765:localhost:8765 hostname
 "
