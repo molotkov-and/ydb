@@ -1553,10 +1553,13 @@ private:
     }
 
     void Handle(TEvInterconnect::TEvNodeInfo::TPtr &ev) {
+        BLOG_TRACE("Handle TEvInterconnect::TEvNodeInfo: DataCenterId# " << ev->Get()->Node->Location.GetDataCenterId());
         static const TString XDS_BOOTSTRAP_CONFIG_ENV = "GRPC_XDS_BOOTSTRAP_CONFIG";
-        TXdsBootstrapConfigBuilder xdsConfigBuilder(Config.GetXdsBootstrap(), ev->Get()->Node->Location.GetDataCenterId(), ToString(this->SelfId().NodeId()));
-        TString conf = xdsConfigBuilder.Build();
-        SetEnv(XDS_BOOTSTRAP_CONFIG_ENV, conf);
+        TXdsBootstrapConfigBuilder xdsConfigBuilder(Config.GetXdsBootstrap());
+        SetEnv(XDS_BOOTSTRAP_CONFIG_ENV, xdsConfigBuilder.Build({
+            .DataCenterId = ev->Get()->Node->Location.GetDataCenterId(),
+            .NodeId = ToString(this->SelfId().NodeId())
+        }));
     }
 
     void Handle(NMon::TEvHttpInfo::TPtr& ev) {

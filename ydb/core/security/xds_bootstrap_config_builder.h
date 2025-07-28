@@ -12,19 +12,23 @@ class TJsonValue;
 namespace NKikimr {
 
 class TXdsBootstrapConfigBuilder {
+    struct TConfigValues {
+        TString DataCenterId;
+        TString NodeId;
+    };
+
 private:
     NKikimrProto::TXdsBootstrap Config;
-    TString DataCenterId;
-    TString NodeId;
 
 public:
-    TXdsBootstrapConfigBuilder(const NKikimrProto::TXdsBootstrap& config, const TString& dataCenterId, const TString& nodeId);
+    TXdsBootstrapConfigBuilder(const NKikimrProto::TXdsBootstrap& config);
 
-    TString Build() const;
+    TString Build(const TConfigValues& configValues) const;
 
 private:
-    void BuildFieldNode(NJson::TJsonValue* json) const;
-    void BuildFieldXdsServers(NJson::TJsonValue* json) const;
+    void BuildFieldNode(NJson::TJsonValue* const json, const TConfigValues& configValues) const;
+    void BuildFieldXdsServers(NJson::TJsonValue* const json) const;
+    void ConvertStringToJsonValue(const TString& jsonString, NJson::TJsonValue* const out) const;
 };
 
 } // NKikimr

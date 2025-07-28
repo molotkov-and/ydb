@@ -70,8 +70,8 @@ Y_UNIT_TEST_SUITE(XdsBootstrapConfigBuilderTest) {
                                             "]"
                                         "}";
 
-        TXdsBootstrapConfigBuilder builder(config, "dc1", "12345");
-        UNIT_ASSERT_STRINGS_EQUAL(expectedConfiguration, builder.Build());
+        TXdsBootstrapConfigBuilder builder(config);
+        UNIT_ASSERT_STRINGS_EQUAL(expectedConfiguration, builder.Build({.DataCenterId = "dc1", .NodeId = "12345"}));
     }
 
     Y_UNIT_TEST(SetNodeInfoToConfig) {
@@ -101,8 +101,8 @@ Y_UNIT_TEST_SUITE(XdsBootstrapConfigBuilderTest) {
                                             "]"
                                         "}";
 
-        TXdsBootstrapConfigBuilder builder(config, "dc1", "12345");
-        UNIT_ASSERT_STRINGS_EQUAL(expectedConfiguration, builder.Build());
+        TXdsBootstrapConfigBuilder builder(config);
+        UNIT_ASSERT_STRINGS_EQUAL(expectedConfiguration, builder.Build({.DataCenterId = "dc1", .NodeId = "12345"}));
     }
 }
 

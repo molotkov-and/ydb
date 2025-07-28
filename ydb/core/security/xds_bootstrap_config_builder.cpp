@@ -6,39 +6,36 @@
 
 namespace NKikimr {
 
-TXdsBootstrapConfigBuilder::TXdsBootstrapConfigBuilder(const NKikimrProto::TXdsBootstrap& config, const TString& dataCenterId, const TString& nodeId)
+TXdsBootstrapConfigBuilder::TXdsBootstrapConfigBuilder(const NKikimrProto::TXdsBootstrap& config)
     : Config(config)
-    , DataCenterId(dataCenterId)
-    , NodeId(nodeId)
 {}
 
-TString TXdsBootstrapConfigBuilder::Build() const {
+TString TXdsBootstrapConfigBuilder::Build(const TConfigValues& configValues) const {
     NJson::TJsonValue xdsBootstrapConfigJson;
     NProtobufJson::Proto2Json(Config, xdsBootstrapConfigJson, {.FieldNameMode = NProtobufJson::TProto2JsonConfig::FldNameMode::FieldNameSnakeCaseDense});
-    BuildFieldNode(&xdsBootstrapConfigJson);
+    BuildFieldNode(&xdsBootstrapConfigJson, configValues);
     BuildFieldXdsServers(&xdsBootstrapConfigJson);
     return NJson::WriteJson(xdsBootstrapConfigJson, false);
 }
 
-void TXdsBootstrapConfigBuilder::BuildFieldNode(NJson::TJsonValue* json) const {
+void TXdsBootstrapConfigBuilder::BuildFieldNode(NJson::TJsonValue* const json, const TConfigValues& configValues) const {
     NJson::TJsonValue& nodeJson = (*json)["node"];
     if (Config.GetNode().HasMeta()) {
+        // Message in protobuf can not contain field with name "metadata", so
+        // Create field "meta" with string in JSON format
+        // Convert string from field "meta" to JsonValue struct and write to field "metadata"
+        ConvertStringToJsonValue(nodeJson["meta"].GetString(), &nodeJson["metadata"]);
         nodeJson.EraseValue("meta");
-        NJson::TJsonValue metadataJson;
-        NJson::TJsonReaderConfig jsonConfig;
-        if (NJson::ReadJsonTree(Config.GetNode().GetMeta(), &jsonConfig, &metadataJson)) {
-            nodeJson["metadata"] = metadataJson;
-        }
     }
     if (!Config.GetNode().HasId()) {
-        nodeJson["id"] = NodeId;
+        nodeJson["id"] = configValues.NodeId;
     }
     if (!Config.GetNode().GetLocality().HasZone()) {
-        nodeJson["locality"]["zone"] = DataCenterId;
+        nodeJson["locality"]["zone"] = configValues.DataCenterId;
     }
 }
 
-void TXdsBootstrapConfigBuilder::BuildFieldXdsServers(NJson::TJsonValue* json) const {
+void TXdsBootstrapConfigBuilder::BuildFieldXdsServers(NJson::TJsonValue* const json) const {
     NJson::TJsonValue& xdsServersJson = *json;
     NJson::TJsonValue::TArray xdsServers;
     xdsServersJson["xds_servers"].GetArray(&xdsServers);
@@ -49,15 +46,19 @@ void TXdsBootstrapConfigBuilder::BuildFieldXdsServers(NJson::TJsonValue* json) c
         xdsServerJson.EraseValue("channel_creds");
         for (auto& channelCredJson : channelCreds) {
             if (channelCredJson.Has("config")) {
-                NJson::TJsonValue typeConfigJson;
-                NJson::TJsonReaderConfig jsonConfig;
-                if (NJson::ReadJsonTree(channelCredJson["config"].GetString(), &jsonConfig, &typeConfigJson)) {
-                    channelCredJson["config"] = typeConfigJson;
-                }
+                ConvertStringToJsonValue(channelCredJson["config"].GetString(), &channelCredJson["config"]);
             }
             xdsServerJson["channel_creds"].AppendValue(channelCredJson);
         }
         xdsServersJson["xds_servers"].AppendValue(xdsServerJson);
+    }
+}
+
+void TXdsBootstrapConfigBuilder::ConvertStringToJsonValue(const TString& jsonString, NJson::TJsonValue* const out) const {
+    NJson::TJsonValue jsonValue;
+    NJson::TJsonReaderConfig jsonConfig;
+    if (NJson::ReadJsonTree(jsonString, &jsonConfig, &jsonValue)) {
+        *out = jsonValue;
     }
 }
 
