@@ -125,7 +125,7 @@
 
 #include <ydb/core/security/ticket_parser.h>
 #include <ydb/core/security/ldap_auth_provider/ldap_auth_provider.h>
-#include <ydb/core/security/service-ticket-manager/service-ticket-manager.h>
+#include <ydb/core/security/service_token_manager/service_token_manager.h>
 #include <ydb/core/security/ticket_parser_settings.h>
 
 #include <ydb/core/sys_view/processor/processor.h>
@@ -1629,11 +1629,11 @@ TSecurityServicesInitializer::TSecurityServicesInitializer(const TKikimrRunConfi
 {
 }
 
-void TSecurityServicesInitializer::InitializeServiceTicketManager(NActors::TActorSystemSetup* setup, const NKikimr::TAppData* appData) {
-    if (!IsServiceInitialized(setup, MakeServiceTicketManagerID())) {
-        IActor* serviceTicketManager = CreateServiceTicketManager(Config.GetAuthConfig().GetServiceTicketManager());
-        if (serviceTicketManager) {
-            setup->LocalServices.push_back(std::make_pair<TActorId, TActorSetupCmd>(MakeServiceTicketManagerID(), TActorSetupCmd(serviceTicketManager, TMailboxType::HTSwap, appData->UserPoolId)));
+void TSecurityServicesInitializer::InitializeServiceTokenManager(NActors::TActorSystemSetup* setup, const NKikimr::TAppData* appData) {
+    if (!IsServiceInitialized(setup, MakeServiceTokenManagerID())) {
+        IActor* serviceTokenManager = CreateServiceTokenManager(Config.GetAuthConfig().GetServiceTokenManager());
+        if (serviceTokenManager) {
+            setup->LocalServices.push_back(std::make_pair<TActorId, TActorSetupCmd>(MakeServiceTokenManagerID(), TActorSetupCmd(serviceTokenManager, TMailboxType::HTSwap, appData->UserPoolId)));
         }
     }
 }
@@ -1674,7 +1674,7 @@ void TSecurityServicesInitializer::InitializeTicketParser(NActors::TActorSystemS
 
 void TSecurityServicesInitializer::InitializeServices(NActors::TActorSystemSetup* setup,
                                                       const NKikimr::TAppData* appData) {
-    InitializeServiceTicketManager(setup, appData);
+    InitializeServiceTokenManager(setup, appData);
     InitializeLdapAuthProvider(setup, appData);
     InitializeTicketParser(setup, appData);
 }
