@@ -500,7 +500,7 @@ private:
     template <typename TTokenRecord>
     void AccessServiceBulkAuthorize(const TString& key, TTokenRecord& record) const {
         auto request = CreateAccessServiceRequest<TEvAccessServiceBulkAuthorizeRequest>(key, record);
-        if (Config.HasAccessServiceTokenName()) {
+        if (Config.HasAccessServiceTokenName() && Config.GetServiceTokenManager().GetEnable()) {
             auto it = ServiceTokens.find(Config.GetAccessServiceTokenName());
             if (it != ServiceTokens.end()) {
                 request->Token = it->second;
@@ -941,6 +941,7 @@ private:
         }
 
         TString key = GetKey(ev->Get());
+        BLOG_TRACE("+++ key: " << key);
         TActorId sender = ev->Sender;
         ui64 cookie = ev->Cookie;
 
@@ -1186,6 +1187,8 @@ private:
         SetError(key, record, {.Message = errorMessage, .Retryable = isRetryableError});
     }
 
+    static bool IsRetryableBulkAuthorizeError(const NYdbGrpc::TGrpcStatus& status);
+
     static TString ConcatenateErrorMessages(const std::vector<typename THashMap<TString, TPermissionRecord>::iterator>& requiredPermissions) {
         TStringBuilder errorMessage;
         auto it = requiredPermissions.cbegin();
@@ -1398,7 +1401,7 @@ private:
                     }
                 }
             } else {
-                SetAccessServiceBulkAuthorizeError(key, record, TString{response->Status.Msg}, IsRetryableGrpcError(response->Status));
+                SetAccessServiceBulkAuthorizeError(key, record, TString{response->Status.Msg}, IsRetryableBulkAuthorizeError(response->Status));
             }
             Respond(record);
         }
@@ -2269,14 +2272,40 @@ public:
 
 template <typename TDerived>
 void TTicketParserImpl<TDerived>::CreateServiceTokens() {
-    if (Config.HasAccessServiceTokenName()) {
+    if (Config.HasAccessServiceTokenName() && Config.GetServiceTokenManager().GetEnable()) {
+        BLOG_TRACE("Send EvSubscribeUpdateToken to service token manager");
         Send(MakeServiceTokenManagerID(), new TEvServiceTokenManager::TEvSubscribeUpdateToken(Config.GetAccessServiceTokenName()));
     }
 }
 
 template <typename TDerived>
 void TTicketParserImpl<TDerived>::Handle(TEvServiceTokenManager::TEvUpdateToken::TPtr& ev) {
-    ServiceTokens[ev->Get()->Id] = ev->Get()->Token;
+    static auto convertStatusCode = [] (const TEvServiceTokenManager::TStatus::ECode& code) {
+        switch (code) {
+        case TEvServiceTokenManager::TStatus::ECode::SUCCESS: return "Success";
+        case TEvServiceTokenManager::TStatus::ECode::NOT_READY: return "Not ready";
+        case TEvServiceTokenManager::TStatus::ECode::ERROR: return "Error";
+        }
+    };
+
+    BLOG_TRACE("Handle TEvServiceTokenManager::TEvUpdateToken: id# " << ev->Get()->Id
+                                                        << ", Status.code# " << convertStatusCode(ev->Get()->Status.Code)
+                                                        << ", Status.Msg# " << ev->Get()->Status.Message
+                                                        << ", Token# " << MaskTicket(ev->Get()->Token));
+    if (ev->Get()->Status.Code == TEvServiceTokenManager::TStatus::ECode::SUCCESS) {
+        ServiceTokens[ev->Get()->Id] = ev->Get()->Token;
+    }
+}
+
+template <typename TDerived>
+bool TTicketParserImpl<TDerived>::IsRetryableBulkAuthorizeError(const NYdbGrpc::TGrpcStatus& status) {
+    switch (status.GRpcStatusCode) {
+    case grpc::StatusCode::PERMISSION_DENIED:
+    case grpc::StatusCode::INVALID_ARGUMENT:
+    case grpc::StatusCode::NOT_FOUND:
+        return false;
+    }
+    return true;
 }
 
 }

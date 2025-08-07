@@ -1239,9 +1239,12 @@ namespace Tests {
 
         Runtime->SetTxAllocatorTabletIds({ChangeStateStorage(TxAllocator, Settings->Domain)});
         {
-            // IActor* serviceTokenManager = NKikimr::CreateServiceTokenManager(Settings->AuthConfig.GetServiceTokenManager());
-            // TActorId serviceTokenManagerId = Runtime->Register(serviceTokenManager, nodeIdx, userPoolId);
-            // Runtime->RegisterService(MakeServiceTokenManagerID(), serviceTokenManagerId, nodeIdx);
+            if (Settings->AuthConfig.GetServiceTokenManager().GetEnable()) {
+                TActorId fakeHttProxy = Runtime->AllocateEdgeActor(nodeIdx);
+                IActor* serviceTokenManager = NKikimr::CreateServiceTokenManager(Settings->AuthConfig.GetServiceTokenManager(), fakeHttProxy);
+                TActorId serviceTokenManagerId = Runtime->Register(serviceTokenManager, nodeIdx, userPoolId);
+                Runtime->RegisterService(MakeServiceTokenManagerID(), serviceTokenManagerId, nodeIdx);
+            }
 
             if (Settings->AuthConfig.HasLdapAuthentication()) {
                 IActor* ldapAuthProvider = NKikimr::CreateLdapAuthProvider(Settings->AuthConfig.GetLdapAuthentication());

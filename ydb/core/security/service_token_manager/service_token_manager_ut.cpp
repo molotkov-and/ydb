@@ -44,8 +44,8 @@ NKikimrProto::TServiceTokenManager::TVmMetadataProvider ConfigureVmMetadataProvi
         vmMetadataInfo->SetEndpoint(infoSettings.Endpoint);
     }
     auto vmMetadataProviderSettings = vmMetadataTokenProviderConfig.MutableTokenProviderSettings();
-    vmMetadataProviderSettings->SetSuccessRefreshTime(initializer.Settings.SuccessRefreshPeriod);
-    vmMetadataProviderSettings->SetMaxErrorRefreshTime(initializer.Settings.ErrorRefreshPeriod);
+    vmMetadataProviderSettings->SetSuccessRefreshPeriod(initializer.Settings.SuccessRefreshPeriod);
+    vmMetadataProviderSettings->SetMaxErrorRefreshPeriod(initializer.Settings.ErrorRefreshPeriod);
     vmMetadataProviderSettings->SetRequestTimeout(initializer.Settings.RequestTimeout);
 
     return vmMetadataTokenProviderConfig;

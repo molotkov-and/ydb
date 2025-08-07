@@ -130,8 +130,8 @@ void TServiceTokenManager::BootstrapVmMetadataProvider() {
         const auto& vmMetadataProvider = Config.GetVmMetadataProvider();
         const auto& tokenProviderSettings = vmMetadataProvider.GetTokenProviderSettings();
         VmMetadataProviderSettings =  {
-            .SuccessRefreshPeriod = TDuration::Parse(tokenProviderSettings.GetSuccessRefreshTime()),
-            .ErrorRefreshPeriod = TDuration::Parse(tokenProviderSettings.GetMaxErrorRefreshTime())
+            .SuccessRefreshPeriod = TDuration::Parse(tokenProviderSettings.GetSuccessRefreshPeriod()),
+            .ErrorRefreshPeriod = TDuration::Parse(tokenProviderSettings.GetMaxErrorRefreshPeriod())
         };
         for (const auto& vmMetadataInfo : vmMetadataProvider.GetVmMetadataInfo()) {
             TokenProviders[vmMetadataInfo.GetId()] = std::make_shared<TVmMetadataTokenProvider>(this, VmMetadataProviderSettings, HttpProxyId, vmMetadataInfo);
@@ -203,10 +203,10 @@ void TServiceTokenManager::Handle(NServiceTokenManager::TEvPrivate::TEvUpdateTok
 void TServiceTokenManager::Handle(TEvServiceTokenManager::TEvSubscribeUpdateToken::TPtr& ev) {
     BLOG_TRACE("+++: Handle TEvServiceTokenManager::TEvSubscribeUpdateToken");
     TString id = ev->Get()->Id;
-    Subscribers[id].insert(ev->Sender);
     BLOG_TRACE("+++: Handle TEvServiceTokenManager::TEvSubscribeUpdateToken: Try response immediately");
     auto it = TokenProviders.find(id);
     if (it != TokenProviders.end()) {
+        Subscribers[id].insert(ev->Sender);
         Send(ev->Sender, new TEvServiceTokenManager::TEvUpdateToken(id, it->second->GetToken(), it->second->GetStatus()));
     } else {
         // попытаться получить токен. Или отвечать с ошибкой, что такого провайдера не существует.
