@@ -12,6 +12,7 @@ SRCS(
     service_account_service_mock.h
     user_account_service_mock.h
     session_service_mock.h
+    token_agent_mock.h
 )
 
 PEERDIR(

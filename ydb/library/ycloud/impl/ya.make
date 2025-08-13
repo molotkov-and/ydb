@@ -1,5 +1,6 @@
 RECURSE_FOR_TESTS(
     ut
+    token_agent_ut
 )
 
 LIBRARY()
@@ -20,6 +21,7 @@ SRCS(
     service_account_service.h
     user_account_service.cpp
     user_account_service.h
+    token_agent.cpp
 )
 
 PEERDIR(

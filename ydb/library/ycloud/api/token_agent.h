@@ -11,7 +11,7 @@ using namespace NKikimr;
 
 class TIamTokenService;
 
-struct TEvTokenAgent {
+namespace NEvTokenAgent {
     enum EEv {
         // requests
         EvGetTokenRequest = EventSpaceBegin(TKikimrEvents::ES_TOKEN_AGENT),
