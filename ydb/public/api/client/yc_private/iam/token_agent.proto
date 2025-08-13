@@ -1,0 +1,26 @@
+syntax = "proto3";
+
+package yandex.cloud.priv.iam.v1;
+
+import "google/protobuf/timestamp.proto";
+import "ydb/public/api/client/yc_private/iam/sensitive.proto";
+
+option go_package = "iam";
+option java_outer_classname = "PTAS";
+
+// The IAM token agent definition.
+service TokenAgent {
+  rpc GetToken(GetTokenRequest) returns (GetTokenResponse) {}
+}
+
+message GetTokenRequest {
+  // An additional service qualifier for obtaining different tokens
+  // for different services running on behalf of the same user.
+  string tag = 1;
+}
+
+// The response message containing the token
+message GetTokenResponse {
+  string iam_token = 1 [(sensitive) = true, (sensitive_type) = SENSITIVE_IAM_TOKEN, json_name="iam_token"];
+  google.protobuf.Timestamp expires_at = 2 [json_name="expires_at"];
+}
