@@ -4,6 +4,8 @@ FORK_SUBTESTS()
 
 SIZE(MEDIUM)
 
+TIMEOUT(20)
+
 PEERDIR(
     library/cpp/retry
     ydb/core/testlib/default
@@ -16,6 +18,7 @@ SRCS(
     folder_service_ut.cpp
     service_account_service_ut.cpp
     user_account_service_ut.cpp
+    token_agent_ut.cpp
 )
 
 END()

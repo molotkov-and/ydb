@@ -60,7 +60,8 @@
 #include <ydb/core/client/server/msgbus_server.h>
 #include <ydb/core/security/ticket_parser.h>
 #include <ydb/core/security/ldap_auth_provider/ldap_auth_provider.h>
-#include <ydb/core/security/token_manager/token_manager.h>
+// #include <ydb/core/security/token_manager/token_manager.h>
+#include <ydb/core/security/token_manager/kikimr_token_manager.h>
 #include <ydb/core/security/ticket_parser_settings.h>
 #include <ydb/core/base/user_registry.h>
 #include <ydb/core/health_check/health_check.h>

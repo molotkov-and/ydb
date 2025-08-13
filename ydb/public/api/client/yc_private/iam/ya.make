@@ -16,6 +16,8 @@ SRCS(
     reference.proto
     service_account_service.proto
     service_account.proto
+    sensitive.proto
+    token_agent.proto
     user_account_service.proto
     user_account.proto
     yandex_passport_cookie.proto
@@ -26,4 +28,3 @@ USE_COMMON_GOOGLE_APIS(
 )
 
 END()
-

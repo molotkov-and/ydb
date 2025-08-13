@@ -130,6 +130,7 @@ public:
 
 
 IActor* CreateAccessServiceV1(const TAccessServiceSettings& settings) {
+    Cerr << "+++ CreateAccessServiceV1" << Endl;
     return new TAccessServiceV1(settings);
 }
 

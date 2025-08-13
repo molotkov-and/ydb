@@ -54,7 +54,8 @@ struct TTestSetup {
         //AccessServiceActor = NCloud::CreateAccessService("localhost:" + ToString(ServicePort));
         NCloud::TAccessServiceSettings sets;
         sets.Endpoint = "localhost:" + ToString(ServicePort);
-        AccessServiceActor = NCloud::CreateAccessServiceWithCache(sets);
+        // AccessServiceActor = NCloud::CreateAccessServiceWithCache(sets);
+        AccessServiceActor = NCloud::CreateAccessServiceV1(sets);
         GetRuntime()->Register(AccessServiceActor);
     }
 
