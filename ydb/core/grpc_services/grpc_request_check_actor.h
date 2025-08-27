@@ -41,7 +41,7 @@ bool TGRpcRequestProxyHandleMethods::ValidateAndReplyOnError(TCtx* ctx) {
     }
 }
 
-inline TVector<TEvTicketParser::TEvAuthorizeTicket::TEntry> GetEntriesForAuthAndCheckRequest(TEvRequestAuthAndCheck::TPtr& ev) {
+inline TVector<TEvTicketParser::TEvAuthorizeTicket::TEntry> GetEntriesForAuthAndCheckRequest(TEvRequestAuthAndCheck::TPtr& ev, const TVector<std::pair<TString, TString>>& rootAttributes) {
     const bool isBearerToken = ev->Get()->YdbToken && ev->Get()->YdbToken->StartsWith("Bearer");
     const bool useAccessService = AppData()->AuthConfig.GetUseAccessService();
     const bool needClusterAccessResourceCheck =
@@ -57,10 +57,19 @@ inline TVector<TEvTicketParser::TEvAuthorizeTicket::TEntry> GetEntriesForAuthAnd
     const TString& accessServiceType = AppData()->AuthConfig.GetAccessServiceType();
 
     if (accessServiceType == "Yandex_v2") {
-        static const TVector<NKikimr::TEvTicketParser::TEvAuthorizeTicket::TEntry> entries = {
-            {NKikimr::TEvTicketParser::TEvAuthorizeTicket::ToPermissions({"ydb.developerApi.get", "ydb.developerApi.update"}), {{"gizmo_id", "gizmo"}}}
+        static const TVector<TString> allowedAttributes = {"cloud_id", "folder_id"};
+        TVector<std::pair<TString, TString>> attributes;
+        for (const auto& attr : rootAttributes) {
+            if (std::find(allowedAttributes.begin(), allowedAttributes.end(), attr.first) != allowedAttributes.end()) {
+                attributes.emplace_back(attr);
+            }
+        }
+        static const auto ydbUiPermissions = NKikimr::TEvTicketParser::TEvAuthorizeTicket::ToPermissions({"ydb.ui.use", "ydb.developerUi.use"});
+        static const auto developerApiPermissions = NKikimr::TEvTicketParser::TEvAuthorizeTicket::ToPermissions({"ydb.developerApi.get", "ydb.developerApi.update"});
+        return {
+            {ydbUiPermissions, {attributes}},
+            {developerApiPermissions, {{"gizmo_id", "gizmo"}}}
         };
-        return entries;
     } else {
         return {};
     }
@@ -78,24 +87,34 @@ inline TVector<TEvTicketParser::TEvAuthorizeTicket::TEntry> GetEntriesForCluster
         return {};
     }
 
+    static const auto adminPermissions = NKikimr::TEvTicketParser::TEvAuthorizeTicket::ToPermissions({
+        "ydb.clusters.manage"
+    });
+
+    static const TVector<TString> allowedAttributes = {"cloud_id", "folder_id"};
+    TVector<std::pair<TString, TString>> attributes;
+    for (const auto& attr : rootAttributes) {
+        if (std::find(allowedAttributes.begin(), allowedAttributes.end(), attr.first) != allowedAttributes.end()) {
+            attributes.emplace_back(attr);
+        }
+    }
+    TVector<TEvTicketParser::TEvAuthorizeTicket::TEntry> entries(1, {adminPermissions, {attributes}});
+
     const TString& accessServiceType = AppData()->AuthConfig.GetAccessServiceType();
     if (accessServiceType == "Nebius_v1") {
         static const auto permissions = NKikimr::TEvTicketParser::TEvAuthorizeTicket::ToPermissions({
-            "ydb.clusters.get", "ydb.clusters.monitor", "ydb.clusters.manage"
+            "ydb.clusters.get", "ydb.clusters.monitor"
         });
-        auto it = std::find_if(rootAttributes.begin(), rootAttributes.end(),
+        auto it = std::find_if(attributes.begin(), attributes.end(),
         [](const std::pair<TString, TString>& p) {
             return p.first == "folder_id";
         });
         if (it == rootAttributes.end()) {
             return {};
         }
-        return {
-            {permissions, {{"folder_id", it->second}}}
-        };
-    } else {
-        return {};
+        entries.insert(entries.end(), {permissions, {{"folder_id", it->second}}});
     }
+    return entries;
 }
 
 template <typename TEvent>
@@ -147,7 +166,7 @@ public:
         }
 
         if constexpr (std::is_same_v<TEvent, TEvRequestAuthAndCheck>) {
-            TVector<TEvTicketParser::TEvAuthorizeTicket::TEntry> authCheckRequestEntries = GetEntriesForAuthAndCheckRequest(Request_);
+            TVector<TEvTicketParser::TEvAuthorizeTicket::TEntry> authCheckRequestEntries = GetEntriesForAuthAndCheckRequest(Request_, rootAttributes);
             entries.insert(entries.end(), authCheckRequestEntries.begin(), authCheckRequestEntries.end());
         }
 
