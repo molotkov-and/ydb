@@ -1,49 +1,6 @@
-PROTO_LIBRARY()
-PROTOC_FATAL_WARNINGS()
-
-EXCLUDE_TAGS(GO_PROTO)
-
-GRPC()
-SRCS(
-    address.proto
-    authority.proto
-    backoff.proto
-    base.proto
-    config_source.proto
-    deprecation.proto
-    discovery.proto
-    eds.proto
-    endpoint_components.proto
-    endpoint.proto
-    event_service_config.proto
-    extension.proto
-    grpc_service.proto
-    health_check.proto
-    http_uri.proto
-    http.proto
-    migrate.proto
-    percent.proto
-    proxy_protocol.proto
-    range.proto
-    regex.proto
-    resource.proto
-    semantic_version.proto
-    sensitive.proto
-    socket_option.proto
-    status.proto
-    string.proto
-    substitution_format_string.proto
-    validate.proto
-    versioning.proto
-    xds_collection_entry.proto
-    xds_context_params.proto
-    xds_extension.proto
-    xds_resource_locator.proto
-    xds_status.proto
-    )
-
-    USE_COMMON_GOOGLE_APIS(
-    api/annotations
+RECURSE(
+    envoy
+    udpa
+    validate
+    xds
 )
-
-END()
