@@ -56,6 +56,12 @@ enum EElementType {
     SET = 0x31,
 };
 
+enum EAuthMethod {
+    LDAP_AUTH_NONE = 0x00U,
+    LDAP_AUTH_SIMPLE = 0x80U,
+    LDAP_AUTH_SASL = 0xa3U,
+};
+
 struct TBindRequestInfo {
     struct TInitializeList {
         TString Login;

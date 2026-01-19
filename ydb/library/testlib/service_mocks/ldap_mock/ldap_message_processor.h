@@ -25,6 +25,7 @@ private:
     int GetInt();
     void GetNBytes(unsigned char* buf, size_t n);
     TString GetString();
+    std::vector<unsigned char> GetStringArr();
     std::vector<TProtocolOpData> ProcessBindRequest(const std::vector<std::pair<TBindRequestInfo, TBindResponseInfo>>& responses);
     std::vector<TProtocolOpData> ProcessSearchRequest(const std::vector<std::pair<TSearchRequestInfo, TSearchResponseInfo>>& responses);
     std::vector<TProtocolOpData> ProcessExtendedRequest();

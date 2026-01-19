@@ -104,7 +104,10 @@ public:
         , Server(InitAuthSettings(std::move(initLdapSettings), isLoginAuthenticationEnabled))
         , Connection(GetDriverConfig(Server.GetPort()))
         , Client(Connection)
-    {}
+    {
+        Server.GetRuntime()->SetLogPriority(NKikimrServices::GRPC_CLIENT, NLog::PRI_TRACE);
+        Server.GetRuntime()->SetLogPriority(NKikimrServices::LDAP_AUTH_PROVIDER, NLog::PRI_TRACE);
+    }
 
     ui16 GetLdapPort() const {
         return LdapPort;

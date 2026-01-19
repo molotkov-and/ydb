@@ -1,4 +1,5 @@
 #include <util/stream/format.h>
+#include <util/string/builder.h>
 #include <utility>
 #include <algorithm>
 #include "ldap_message_processor.h"
@@ -126,6 +127,20 @@ TString TLdapRequestProcessor::GetString() {
     return res;
 }
 
+std::vector<unsigned char> TLdapRequestProcessor::GetStringArr() {
+    size_t length = GetLength();
+    if (length == 0) {
+        return {};
+    }
+
+    std::vector<unsigned char> res;
+    res.reserve(length);
+    for (size_t i = 0; i < length; i++) {
+        res.push_back(GetByte());
+    }
+    return res;
+}
+
 int TLdapRequestProcessor::ExtractMessageId() {
     int res = GetInt();
     return res;
@@ -210,10 +225,65 @@ std::vector<TLdapRequestProcessor::TProtocolOpData> TLdapRequestProcessor::Proce
 
     requestInfo.Login = GetString();
 
-    unsigned char authType = GetByte();
-    Y_UNUSED(authType);
-
-    requestInfo.Password = GetString();
+    unsigned char authMethod = GetByte();
+    switch (authMethod) {
+    case EAuthMethod::LDAP_AUTH_NONE:
+        break;
+    case EAuthMethod::LDAP_AUTH_SIMPLE:
+        requestInfo.Password = GetString();
+        break;
+    case EAuthMethod::LDAP_AUTH_SASL:
+        size_t authMessageLength = GetLength();
+        if (authMessageLength == 0) {
+            responseOpData.Data = CreateResponse({.Status = EStatus::PROTOCOL_ERROR});
+            Cerr << "LDAP_MOCK: BindRequest, protocol error, auth message length is zero" << Endl;
+            return {responseOpData};
+        }
+        elementType = GetByte();
+        if (elementType != EElementType::STRING) {
+            responseOpData.Data = CreateResponse({.Status = EStatus::PROTOCOL_ERROR});
+            Cerr << "LDAP_MOCK: BindRequest, protocol error, sasl mechanism is not a string" << Endl;
+            return {responseOpData};
+        }
+        TString saslMechanism = GetString();
+        elementType = GetByte();
+        if (elementType != EElementType::STRING) {
+            responseOpData.Data = CreateResponse({.Status = EStatus::PROTOCOL_ERROR});
+            Cerr << "LDAP_MOCK: BindRequest, protocol error, sasl credentials is not a string" << Endl;
+            return {responseOpData};
+        }
+        std::vector<unsigned char> credentials = GetStringArr();
+        if (credentials.empty()) {
+            responseOpData.Data = CreateResponse({.Status = EStatus::PROTOCOL_ERROR});
+            Cerr << "LDAP_MOCK: BindRequest, protocol error, sasl credentials is empty" << Endl;
+            return {responseOpData};
+        }
+        if (saslMechanism == "PLAIN") {
+            TStringBuilder authzid;
+            auto it = credentials.cbegin();
+            for (; it != credentials.cend() && *it != '\0'; ++it) {
+                authzid << *it;
+            }
+            if (it != credentials.cend()) {
+                ++it;
+            }
+            TStringBuilder authcid;
+            for (; it != credentials.cend() && *it != '\0'; ++it) {
+                authcid << *it;
+            }
+            if (it != credentials.cend()) {
+                ++it;
+            }
+            TStringBuilder password;
+            for (; it != credentials.cend() && *it != '\0'; ++it) {
+                password << *it;
+            }
+            requestInfo.Login = authcid;
+            requestInfo.Password = password;
+            Cerr << "+++: authzid: " << authzid << ", authcid: " << authcid << ", password: " << password << Endl;
+        }
+        break;
+    }
 
     const auto it = std::find_if(responses.begin(), responses.end(), [&requestInfo] (const std::pair<TBindRequestInfo, TBindResponseInfo>& el) {
         const auto& expectedRequestInfo = el.first;

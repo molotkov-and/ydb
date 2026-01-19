@@ -4,7 +4,6 @@
 #include <ydb/core/security/ticket_parser_log.h>
 #include "ldap_auth_provider.h"
 
-#define LDAP_DEPRECATED 1
 #include <ldap.h>
 
 #include "ldap_compat.h"
@@ -41,11 +40,28 @@ char* noAttributes[] = {ldapNoAttribute, nullptr};
 const TString LDAPS_SCHEME = "ldaps";
 
 int Bind(LDAP* ld, const TString& dn, const TString& password) {
-    return ldap_simple_bind_s(ld, dn.c_str(), password.c_str());
+    static const TString authzid = "";
+    berval cred;
+    cred.bv_len = static_cast<ber_len_t>(authzid.size() + 1 + dn.size() + 1 + password.size());
+    std::unique_ptr<char[]> bvVal = std::make_unique<char[]>(cred.bv_len);
+    size_t i = 0;
+    for (size_t j = 0; j < authzid.size(); ++j, ++i) {
+        bvVal[i] = authzid[j];
+    }
+    bvVal[i++] = '\0';
+    for (size_t j = 0; j < dn.size(); ++j, ++i) {
+        bvVal[i] = dn[j];
+    }
+    bvVal[i++] = '\0';
+    for (size_t j = 0; j < password.size(); ++j, ++i) {
+        bvVal[i] = password[j];
+    }
+    cred.bv_val = bvVal.get();
+    return ldap_sasl_bind_s(ld, nullptr, "PLAIN", &cred, nullptr, nullptr, nullptr);
 }
 
 int Unbind(LDAP* ld) {
-    return ldap_unbind(ld);
+    return ldap_unbind_ext_s(ld, nullptr, nullptr);
 }
 
 int Init(LDAP** ld, const TString& scheme, const TString& uris, ui32 port) {
@@ -60,7 +76,10 @@ int Search(LDAP* ld,
            char** attrs,
            int attrsonly,
            LDAPMessage** res) {
-    return ldap_search_s(ld, base.c_str(), GetScope(scope), filter.c_str(), attrs, attrsonly, res);
+    struct timeval timeout;
+    timeout.tv_sec = 60;
+    timeout.tv_usec = 0;
+    return ldap_search_ext_s(ld, base.c_str(), GetScope(scope), filter.c_str(), attrs, attrsonly, nullptr, nullptr, &timeout, 0, res);
 }
 
 TString LdapError(LDAP* ld) {
