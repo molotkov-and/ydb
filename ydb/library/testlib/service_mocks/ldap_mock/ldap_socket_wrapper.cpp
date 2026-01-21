@@ -4,6 +4,28 @@
 namespace LdapMock {
 
 namespace {
+    TString certificateContent = R"___(-----BEGIN CERTIFICATE-----
+MIIDjTCCAnWgAwIBAgIURt5IBx0J3xgEaQvmyrFH2A+NkpMwDQYJKoZIhvcNAQEL
+BQAwVjELMAkGA1UEBhMCUlUxDzANBgNVBAgMBk1vc2NvdzEPMA0GA1UEBwwGTW9z
+Y293MQ8wDQYDVQQKDAZZYW5kZXgxFDASBgNVBAMMC3Rlc3Qtc2VydmVyMB4XDTE5
+MDkyMDE3MTQ0MVoXDTQ3MDIwNDE3MTQ0MVowVjELMAkGA1UEBhMCUlUxDzANBgNV
+BAgMBk1vc2NvdzEPMA0GA1UEBwwGTW9zY293MQ8wDQYDVQQKDAZZYW5kZXgxFDAS
+BgNVBAMMC3Rlc3Qtc2VydmVyMIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKC
+AQEAs0WY6HTuwKntcEcjo+pBuoNp5/GRgMX2qOJi09Iw021ZLK4Vf4drN7pXS5Ba
+OVqzUPFmXvoiG13hS7PLTuobJc63qPbIodiB6EXB+Sp0v+mE6lYUUyW9YxNnTPDc
+GG8E4vk9j3tBawT4yJIFTudIALWJfQvn3O9ebmYkilvq0ZT+TqBU8Mazo4lNu0T2
+YxWMlivcEyNRLPbka5W2Wy5eXGOnStidQFYka2mmCgljtulWzj1i7GODg93vmVyH
+NzjAs+mG9MJkT3ietG225BnyPDtu5A3b+vTAFhyJtMmDMyhJ6JtXXHu6zUDQxKiX
+6HLGCLIPhL2sk9ckPSkwXoMOywIDAQABo1MwUTAdBgNVHQ4EFgQUDv/xuJ4CvCgG
+fPrZP3hRAt2+/LwwHwYDVR0jBBgwFoAUDv/xuJ4CvCgGfPrZP3hRAt2+/LwwDwYD
+VR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAinKpMYaA2tjLpAnPVbjy
+/ZxSBhhB26RiQp3Re8XOKyhTWqgYE6kldYT0aXgK9x9mPC5obQannDDYxDc7lX+/
+qP/u1X81ZcDRo/f+qQ3iHfT6Ftt/4O3qLnt45MFM6Q7WabRm82x3KjZTqpF3QUdy
+tumWiuAP5DMd1IRDtnKjFHO721OsEsf6NLcqdX89bGeqXDvrkwg3/PNwTyW5E7cj
+feY8L2eWtg6AJUnIBu11wvfzkLiH3QKzHvO/SIZTGf5ihDsJ3aKEE9UNauTL3bVc
+CRA/5XcX13GJwHHj6LCoc3sL7mt8qV9HKY2AOZ88mpObzISZxgPpdKCfjsrdm63V
+6g==
+-----END CERTIFICATE-----)___";
 const TString serverCert {R"___(-----BEGIN CERTIFICATE-----
 MIIDjTCCAnWgAwIBAgIURt5IBx0J3xgEaQvmyrFH2A+NkpMwDQYJKoZIhvcNAQEL
 BQAwVjELMAkGA1UEBhMCUlUxDzANBgNVBAgMBk1vc2NvdzEPMA0GA1UEBwwGTW9z
@@ -89,12 +111,30 @@ void TLdapSocketWrapper::OnAccept() {
     }
 }
 
+std::string x509_name_to_string(X509_NAME* name) {
+    char buf[1024];
+    X509_NAME_oneline(name, buf, sizeof(buf));
+    return std::string(buf);
+}
+
 void TLdapSocketWrapper::EnableSecureConnection() {
     SSL_set_fd(Ssl.Get(), Socket);
     TBaseSocket::Check(SSL_accept(Ssl.Get()), "SslAccept");
+    long vr = SSL_get_verify_result(Ssl.Get());
+    if (vr != X509_V_OK) {
+        Cerr << "verify_result=" << vr << " " << X509_verify_cert_error_string(vr) << Endl;;
+        // закрыть соединение / вернуть ошибку
+    }
+    x509_st* cert = SSL_get_peer_certificate(Ssl.Get());
+    Cerr << (cert ? "qqqqqqq" : "aaaaaaaaaaa") << Endl;
+    if (cert) {
+        Cerr << "Client cert subject: " << x509_name_to_string(X509_get_subject_name(cert)) << Endl;
+        Cerr << "Client cert issuer : " << x509_name_to_string(X509_get_issuer_name(cert)) << Endl;
+    }
     ReceiveMsg = &TLdapSocketWrapper::SecureReceive;
     SendMsg = &TLdapSocketWrapper::SecureSend;
 }
+
 bool TLdapSocketWrapper::IsSecure() const {
     return IsSecureConnection;
 }
@@ -128,6 +168,20 @@ void TLdapSocketWrapper::SetupCerts() {
 
     SSL_use_certificate_file(Ssl.Get(), certificateFile.Name().c_str(), SSL_FILETYPE_PEM);
     SSL_use_PrivateKey_file(Ssl.Get(), privateKeyFile.Name().c_str(), SSL_FILETYPE_PEM);
+
+    TTempFileHandle caFile;
+    caFile.Write(certificateContent.data(), certificateContent.size());
+    SSL_CTX_load_verify_locations(Ctx.Get(), caFile.Name().c_str(), nullptr);
+}
+
+int verify_cb(int ok, X509_STORE_CTX* store) {
+    int err = X509_STORE_CTX_get_error(store);
+    int depth = X509_STORE_CTX_get_error_depth(store);
+    Cerr << "verify_cb: ok=" << ok
+              << " depth=" << depth
+              << " err=" << err
+              << " (" << X509_verify_cert_error_string(err) << ")\n";
+    return ok;
 }
 
 TLdapSocketWrapper::TSslHolder<SSL_CTX> TLdapSocketWrapper::CreateSslContext() {
@@ -137,6 +191,7 @@ TLdapSocketWrapper::TSslHolder<SSL_CTX> TLdapSocketWrapper::CreateSslContext() {
         SSL_CTX_set_options(context.Get(), SSL_OP_NO_SSLv3);
         SSL_CTX_set_options(context.Get(), SSL_OP_MICROSOFT_SESS_ID_BUG);
         SSL_CTX_set_options(context.Get(), SSL_OP_NETSCAPE_CHALLENGE_BUG);
+        SSL_CTX_set_verify(context.Get(), SSL_VERIFY_PEER, verify_cb);
     }
     return context;
 }

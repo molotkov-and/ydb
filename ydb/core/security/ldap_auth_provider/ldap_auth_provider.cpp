@@ -233,9 +233,11 @@ private:
                 return {{NKikimrLdap::ErrorToStatus(result),
                         {.Message = ERROR_MESSAGE, .LogMessage = logErrorMessage, .Retryable = NKikimrLdap::IsRetryableError(result)}}};
             }
+            LDAP_LOG_D("+++ CERTFILE");
             const TString& certFile = Settings.GetUseTls().GetCertFile();
             const TString& keyFile = Settings.GetUseTls().GetKeyFile();
             if (!certFile.empty() && !keyFile.empty()) {
+                LDAP_LOG_D("+++ TLS_CERTFILE");
                 result = NKikimrLdap::SetOption(*ld, NKikimrLdap::EOption::TLS_CERTFILE, certFile.c_str());
                 if (!NKikimrLdap::IsSuccess(result)) {
                     TStringBuilder logErrorMessage;
@@ -245,6 +247,7 @@ private:
                     return {{NKikimrLdap::ErrorToStatus(result),
                             {.Message = ERROR_MESSAGE, .LogMessage = logErrorMessage, .Retryable = NKikimrLdap::IsRetryableError(result)}}};
                 }
+                LDAP_LOG_D("+++ TLS_KEYFILE");
                 result = NKikimrLdap::SetOption(*ld, NKikimrLdap::EOption::TLS_KEYFILE, keyFile.c_str());
                 if (!NKikimrLdap::IsSuccess(result)) {
                     TStringBuilder logErrorMessage;
@@ -474,7 +477,7 @@ private:
         if (Settings.GetBindDn().empty()) {
             return {TEvLdapAuthProvider::EStatus::UNAVAILABLE, {.Message = ERROR_MESSAGE, .LogMessage = "Parameter BindDn is empty", .Retryable = false}};
         }
-        if (Settings.GetBindPassword().empty()) {
+        if (Settings.GetBindPassword().empty() && !Settings.GetExtendedSettings().GetEnableMtlsAuth()) {
             return {TEvLdapAuthProvider::EStatus::UNAVAILABLE, {.Message = ERROR_MESSAGE, .LogMessage = "Parameter BindPassword is empty", .Retryable = false}};
         }
         return {TEvLdapAuthProvider::EStatus::SUCCESS, {}};

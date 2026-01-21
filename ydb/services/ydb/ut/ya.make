@@ -10,6 +10,8 @@ ELSE()
     SIZE(MEDIUM)
 ENDIF()
 
+TIMEOUT(40)
+
 SRCS(
     ydb_bulk_upsert_ut.cpp
     ydb_bulk_upsert_olap_ut.cpp

@@ -115,6 +115,7 @@ size_t TLdapRequestProcessor::GetLength() {
 
 TString TLdapRequestProcessor::GetString() {
     size_t length = GetLength();
+    Cerr << "+++ length: " << length << Endl;
     if (length == 0) {
         return {};
     }
@@ -210,10 +211,34 @@ std::vector<TLdapRequestProcessor::TProtocolOpData> TLdapRequestProcessor::Proce
 
     requestInfo.Login = GetString();
 
-    unsigned char authType = GetByte();
-    Y_UNUSED(authType);
+    unsigned char authMethod = GetByte();
+    switch (authMethod) {
+    case EAuthMethod::LDAP_AUTH_NONE:
+        break;
+    case EAuthMethod::LDAP_AUTH_SIMPLE:
+        requestInfo.Mechanism = ESaslMechanism::SIMPLE;
+        requestInfo.Password = GetString();
+        break;
+    case EAuthMethod::LDAP_AUTH_SASL:
+        size_t authMessageLength = GetLength();
+        if (authMessageLength == 0) {
+            responseOpData.Data = CreateResponse({.Status = EStatus::PROTOCOL_ERROR});
+            Cerr << "LDAP_MOCK: BindRequest, protocol error, auth message length is zero" << Endl;
+            return {responseOpData};
+        }
+        elementType = GetByte();
+        if (elementType != EElementType::STRING) {
+            responseOpData.Data = CreateResponse({.Status = EStatus::PROTOCOL_ERROR});
+            Cerr << "LDAP_MOCK: BindRequest, protocol error, sasl mechanism is not a string" << Endl;
+            return {responseOpData};
+        }
+        TString saslMechanism = GetString();
+        if (saslMechanism == "EXTERNAL") {
+            requestInfo.Mechanism = ESaslMechanism::EXTERNAL;
 
-    requestInfo.Password = GetString();
+        }
+        break;
+    }
 
     const auto it = std::find_if(responses.begin(), responses.end(), [&requestInfo] (const std::pair<TBindRequestInfo, TBindResponseInfo>& el) {
         const auto& expectedRequestInfo = el.first;
