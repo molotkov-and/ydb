@@ -72,8 +72,9 @@ std::vector<TLdapRequestProcessor::TProtocolOpData> CreateSearchEntryResponses(c
 
 } // namespace
 
-TLdapRequestProcessor::TLdapRequestProcessor(TAtomicSharedPtr<TLdapSocketWrapper> socket)
+TLdapRequestProcessor::TLdapRequestProcessor(TAtomicSharedPtr<TLdapSocketWrapper> socket, const THashMap<TString, TString>& mtlsAuthMap)
     : Socket(socket)
+    , MtlsAuthMap(mtlsAuthMap)
 {}
 
 unsigned char TLdapRequestProcessor::GetByte() {
@@ -115,7 +116,6 @@ size_t TLdapRequestProcessor::GetLength() {
 
 TString TLdapRequestProcessor::GetString() {
     size_t length = GetLength();
-    Cerr << "+++ length: " << length << Endl;
     if (length == 0) {
         return {};
     }
@@ -235,7 +235,14 @@ std::vector<TLdapRequestProcessor::TProtocolOpData> TLdapRequestProcessor::Proce
         TString saslMechanism = GetString();
         if (saslMechanism == "EXTERNAL") {
             requestInfo.Mechanism = ESaslMechanism::EXTERNAL;
-
+            TString bindDn = GetBindDnFromClientCert();
+            if (bindDn.empty()) {
+                responseOpData.Data = CreateResponse({.Status = EStatus::PROTOCOL_ERROR});
+                Cerr << "LDAP_MOCK: BindRequest, protocol error, can not find login for client subject name" << Endl;
+                return {responseOpData};
+            }
+            requestInfo.Login = bindDn;
+            requestInfo.Password = "";
         }
         break;
     }
@@ -484,6 +491,11 @@ void TLdapRequestProcessor::ProcessFilterOr(TSearchRequestInfo::TSearchFilter* f
     while (ReadBytes < limit) {
         filter->NestedFilters.push_back(std::make_shared<TSearchRequestInfo::TSearchFilter>(ProcessFilter()));
     }
+}
+
+TString TLdapRequestProcessor::GetBindDnFromClientCert() {
+    auto it = MtlsAuthMap.find(Socket->GetClientCertSubjectName());
+    return (it != MtlsAuthMap.end() ? it->second : "");
 }
 
 }

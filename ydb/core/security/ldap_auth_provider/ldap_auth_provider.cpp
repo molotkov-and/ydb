@@ -233,11 +233,9 @@ private:
                 return {{NKikimrLdap::ErrorToStatus(result),
                         {.Message = ERROR_MESSAGE, .LogMessage = logErrorMessage, .Retryable = NKikimrLdap::IsRetryableError(result)}}};
             }
-            LDAP_LOG_D("+++ CERTFILE");
             const TString& certFile = Settings.GetUseTls().GetCertFile();
             const TString& keyFile = Settings.GetUseTls().GetKeyFile();
             if (!certFile.empty() && !keyFile.empty()) {
-                LDAP_LOG_D("+++ TLS_CERTFILE");
                 result = NKikimrLdap::SetOption(*ld, NKikimrLdap::EOption::TLS_CERTFILE, certFile.c_str());
                 if (!NKikimrLdap::IsSuccess(result)) {
                     TStringBuilder logErrorMessage;
@@ -247,7 +245,6 @@ private:
                     return {{NKikimrLdap::ErrorToStatus(result),
                             {.Message = ERROR_MESSAGE, .LogMessage = logErrorMessage, .Retryable = NKikimrLdap::IsRetryableError(result)}}};
                 }
-                LDAP_LOG_D("+++ TLS_KEYFILE");
                 result = NKikimrLdap::SetOption(*ld, NKikimrLdap::EOption::TLS_KEYFILE, keyFile.c_str());
                 if (!NKikimrLdap::IsSuccess(result)) {
                     TStringBuilder logErrorMessage;

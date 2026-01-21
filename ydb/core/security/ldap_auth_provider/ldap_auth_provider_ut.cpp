@@ -3,6 +3,7 @@
 #include <library/cpp/testing/unittest/tests_data.h>
 #include <util/system/tempfile.h>
 
+#include <ydb/core/security/certificate_check/cert_auth_utils.h>
 #include <ydb/library/testlib/service_mocks/ldap_mock/ldap_simple_server.h>
 
 #include "ldap_auth_provider.h"
@@ -40,7 +41,13 @@ enum class ESecurityConnectionType {
     LDAPS_SCHEME,
 };
 
-void InitLdapSettings(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
+struct TCertificateFileNames {
+    TString CaCert;
+    TString Cert;
+    TString Key;
+};
+
+void InitLdapSettings(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
     ldapSettings->SetHost("localhost");
     ldapSettings->SetPort(ldapPort);
     ldapSettings->SetBaseDn("dc=search,dc=yandex,dc=net");
@@ -50,75 +57,76 @@ void InitLdapSettings(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldap
     auto extendedSettings = ldapSettings->MutableExtendedSettings();
     extendedSettings->SetEnableNestedGroupsSearch(true);
 
-    const auto setCertificate = [&ldapSettings] (bool useStartTls, TTempFileHandle& certificateFile) {
+    const auto setCertificate = [&ldapSettings] (bool useStartTls, const TCertificateFileNames& certFileNames) {
         auto useTls = ldapSettings->MutableUseTls();
         useTls->SetEnable(useStartTls);
-        certificateFile.Write(certificateContent.data(), certificateContent.size());
-        useTls->SetCaCertFile(certificateFile.Name());
+        useTls->SetCaCertFile(certFileNames.CaCert);
         useTls->SetCertRequire(NKikimrProto::TLdapAuthentication::TUseTls::ALLOW); // Enable TLS connection if server certificate is untrusted
+        useTls->SetCertFile(certFileNames.Cert);
+        useTls->SetKeyFile(certFileNames.Key);
     };
 
     if (securityConnectionType == ESecurityConnectionType::START_TLS) {
-        setCertificate(true, certificateFile);
+        setCertificate(true, certFileNames);
     } else if (securityConnectionType == ESecurityConnectionType::LDAPS_SCHEME) {
         ldapSettings->SetScheme("ldaps");
-        setCertificate(false, certificateFile);
+        setCertificate(false, certFileNames);
     }
 }
 
-void InitLdapSettingsDisableSearchNestedGroups(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsDisableSearchNestedGroups(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     auto extendedSettings = ldapSettings->MutableExtendedSettings();
     extendedSettings->SetEnableNestedGroupsSearch(false);
 }
 
-void InitLdapSettingsWithInvalidRobotUserLogin(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithInvalidRobotUserLogin(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetBindDn("cn=invalidRobouser,dc=search,dc=yandex,dc=net");
 }
 
-void InitLdapSettingsWithInvalidRobotUserPassword(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithInvalidRobotUserPassword(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetBindPassword("invalidPassword");
 }
 
-void InitLdapSettingsWithInvalidFilter(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithInvalidFilter(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetSearchFilter("&(uid=$username)()");
 }
 
-void InitLdapSettingsWithUnavailableHost(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithUnavailableHost(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetHost("unavailablehost");
 }
 
-void InitLdapSettingsWithEmptyHost(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithEmptyHost(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetHost("");
 }
 
-void InitLdapSettingsWithEmptyBaseDn(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithEmptyBaseDn(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetBaseDn("");
 }
 
-void InitLdapSettingsWithEmptyBindDn(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithEmptyBindDn(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetBindDn("");
 }
 
-void InitLdapSettingsWithEmptyBindPassword(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithEmptyBindPassword(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetBindPassword("");
 }
 
-void InitLdapSettingsWithCustomGroupAttribute(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithCustomGroupAttribute(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->SetRequestedGroupAttribute("groupDN");
 }
 
-void InitLdapSettingsWithListOfHosts(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, TTempFileHandle& certificateFile, const ESecurityConnectionType& securityConnectionType) {
-    InitLdapSettings(ldapSettings, ldapPort, certificateFile, securityConnectionType);
+void InitLdapSettingsWithListOfHosts(NKikimrProto::TLdapAuthentication* ldapSettings, ui16 ldapPort, const TCertificateFileNames& certFileNames, const ESecurityConnectionType& securityConnectionType) {
+    InitLdapSettings(ldapSettings, ldapPort, certFileNames, securityConnectionType);
     ldapSettings->AddHosts("qqq");
     ldapSettings->AddHosts("localhost");
     ldapSettings->AddHosts("localhost:11111");
@@ -126,8 +134,8 @@ void InitLdapSettingsWithListOfHosts(NKikimrProto::TLdapAuthentication* ldapSett
 
 class TLdapKikimrServer {
 public:
-    TLdapKikimrServer(std::function<void(NKikimrProto::TLdapAuthentication*, ui16, TTempFileHandle&, const ESecurityConnectionType&)> initLdapSettings, const ESecurityConnectionType& securityConnectionType)
-        : CaCertificateFile()
+    TLdapKikimrServer(std::function<void(NKikimrProto::TLdapAuthentication*, ui16, const TCertificateFileNames&, const ESecurityConnectionType&)> initLdapSettings, const ESecurityConnectionType& securityConnectionType)
+        : CaCertAndKey(GenerateCA(TProps::AsCA()))
         , SecurityConnectionType(securityConnectionType)
         , Server(InitSettings(std::move(initLdapSettings))) {
         Server.EnableGRpc(GrpcPort);
@@ -144,8 +152,12 @@ public:
         return LdapPort;
     }
 
+    TCertAndKey GetCaCertAndKey() const {
+        return CaCertAndKey;
+    }
+
 private:
-    Tests::TServerSettings InitSettings(std::function<void(NKikimrProto::TLdapAuthentication*, ui16, TTempFileHandle&, const ESecurityConnectionType&)>&& initLdapSettings) {
+    Tests::TServerSettings InitSettings(std::function<void(NKikimrProto::TLdapAuthentication*, ui16, const TCertificateFileNames&, const ESecurityConnectionType&)>&& initLdapSettings) {
         using namespace Tests;
         TPortManager tp;
         LdapPort = tp.GetPort(389);
@@ -156,7 +168,12 @@ private:
         authConfig.SetUseLoginProvider(true);
         authConfig.SetRefreshTime("5s");
 
-        initLdapSettings(authConfig.MutableLdapAuthentication(), LdapPort, CaCertificateFile, SecurityConnectionType);
+        CaCertFile.Write(CaCertAndKey.Certificate.c_str(), CaCertAndKey.Certificate.size());
+        TCertAndKey clientCertAndKey = GenerateSignedCert(CaCertAndKey, TProps::AsClientServer());
+        CertFile.Write(clientCertAndKey.Certificate.c_str(), clientCertAndKey.Certificate.size());
+        KeyFile.Write(clientCertAndKey.PrivateKey.c_str(), clientCertAndKey.PrivateKey.size());
+
+        initLdapSettings(authConfig.MutableLdapAuthentication(), LdapPort, {.CaCert = CaCertFile.Name(), .Cert = CertFile.Name(), .Key = KeyFile.Name()}, SecurityConnectionType);
 
         Tests::TServerSettings settings(kikimrPort, authConfig);
         settings.SetDomainName("Root");
@@ -165,7 +182,10 @@ private:
     }
 
 private:
-    TTempFileHandle CaCertificateFile;
+    TTempFileHandle CaCertFile;
+    TTempFileHandle CertFile;
+    TTempFileHandle KeyFile;
+    TCertAndKey CaCertAndKey;
     ESecurityConnectionType SecurityConnectionType = ESecurityConnectionType::NON_SECURE;
     Tests::TServer Server;
     ui16 LdapPort;
@@ -686,13 +706,16 @@ LdapMock::TLdapMockResponses TCorrectLdapResponse::GetAdResponses(const TString&
     return responses;
 }
 
-void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthentication*, ui16, TTempFileHandle&, const ESecurityConnectionType&)> initLdapSettings,
+void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthentication*, ui16, const TCertificateFileNames&, const ESecurityConnectionType&)> initLdapSettings,
                                const TString& expectedErrorMessage,
                                const ESecurityConnectionType& securityConnectionType = ESecurityConnectionType::NON_SECURE) {
     TLdapKikimrServer server(initLdapSettings, securityConnectionType);
 
     LdapMock::TLdapMockResponses responses;
-    LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, securityConnectionType == ESecurityConnectionType::LDAPS_SCHEME);
+    LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, {
+        .EnableSecureConnection = securityConnectionType == ESecurityConnectionType::LDAPS_SCHEME,
+        .CaCert = server.GetCaCertAndKey()
+    });
 
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
@@ -712,7 +735,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettings, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -739,7 +765,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettingsDisableSearchNestedGroups, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login, true), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login, true), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -766,7 +795,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettings, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetAdResponses(login), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetAdResponses(login), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -793,7 +825,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettingsDisableSearchNestedGroups, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetAdResponses(login, true), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetAdResponses(login, true), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -820,7 +855,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettingsWithListOfHosts, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -847,7 +885,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettingsWithCustomGroupAttribute, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login, false, "groupDN"), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login, false, "groupDN"), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -901,7 +942,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         };
         responses.SearchResponses.push_back({fetchGroupsSearchRequestInfo, fetchGroupsSearchResponseInfo});
 
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -924,7 +968,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         responses.BindResponses.push_back({{{.Login = "cn=invalidRobouser,dc=search,dc=yandex,dc=net", .Password = "robouserPassword"}}, {.Status = LdapMock::EStatus::INVALID_CREDENTIALS}});
 
         TLdapKikimrServer server(InitLdapSettingsWithInvalidRobotUserLogin, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -943,7 +990,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         responses.BindResponses.push_back({{{.Login = "cn=robouser,dc=search,dc=yandex,dc=net", .Password = "invalidPassword"}}, {.Status = LdapMock::EStatus::INVALID_CREDENTIALS}});
 
         TLdapKikimrServer server(InitLdapSettingsWithInvalidRobotUserPassword, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -978,7 +1028,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         responses.SearchResponses.push_back({removedUserSearchRequestInfo, removedUserSearchResponseInfo});
 
         TLdapKikimrServer server(InitLdapSettings, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, removedUserLogin, removedUserPassword);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -996,7 +1049,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         responses.BindResponses.push_back({{{.Login = "cn=robouser,dc=search,dc=yandex,dc=net", .Password = "robouserPassword"}}, {.Status = LdapMock::EStatus::SUCCESS}});
 
         TLdapKikimrServer server(InitLdapSettingsWithInvalidFilter, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), responses, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TAutoPtr<IEventHandle> handle = LdapAuthenticate(server, login, password);
         TEvTicketParser::TEvAuthorizeTicketResult* ticketParserResult = handle->Get<TEvTicketParser::TEvAuthorizeTicketResult>();
@@ -1015,7 +1071,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         const TString ldapDomain = "@ldap";
 
         TLdapKikimrServer server(InitLdapSettings, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         auto loginResponse = GetLoginResponse(server, login, password);
         TTestActorRuntime* runtime = server.GetRuntime();
@@ -1070,7 +1129,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
         const TString ldapDomain = "@ldap";
 
         TLdapKikimrServer server(InitLdapSettingsDisableSearchNestedGroups, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         auto loginResponse = GetLoginResponse(server, login, password);
         TTestActorRuntime* runtime = server.GetRuntime();
@@ -1130,7 +1192,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
 
         auto& searchResponse = updatedResponses.SearchResponses.front();
         searchResponse.second = newFetchGroupsSearchResponseInfo;
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         auto loginResponse = GetLoginResponse(server, login, password);
         TTestActorRuntime* runtime = server.GetRuntime();
@@ -1182,7 +1247,10 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
 
         auto& searchResponse = responses.SearchResponses.front();
         searchResponse.second = responseServerBusy;
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), {responses, updatedResponses}, {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         auto loginResponse = GetLoginResponse(server, login, password);
         TTestActorRuntime* runtime = server.GetRuntime();
@@ -1250,7 +1318,10 @@ Y_UNIT_TEST_SUITE(LdapAuthProviderTest) {
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettings, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TTestActorRuntime* runtime = server.GetRuntime();
         NLogin::TLoginProvider provider;
@@ -1291,7 +1362,10 @@ Y_UNIT_TEST_SUITE(LdapAuthProviderTest) {
         TString password = "ldapUserPassword";
 
         TLdapKikimrServer server(InitLdapSettings, secureType);
-        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), secureType == ESecurityConnectionType::LDAPS_SCHEME);
+        LdapMock::TLdapSimpleServer ldapServer(server.GetLdapPort(), TCorrectLdapResponse::GetResponses(login), {
+            .EnableSecureConnection = secureType == ESecurityConnectionType::LDAPS_SCHEME,
+            .CaCert = server.GetCaCertAndKey()
+        });
 
         TTestActorRuntime* runtime = server.GetRuntime();
         NLogin::TLoginProvider provider;

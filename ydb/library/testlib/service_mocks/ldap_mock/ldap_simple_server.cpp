@@ -11,13 +11,14 @@
 
 namespace LdapMock {
 
-TLdapSimpleServer::TLdapSimpleServer(ui16 port, const TLdapMockResponses& responses, bool isSecureConnection)
-    : TLdapSimpleServer(port, {responses, {}}, isSecureConnection)
+TLdapSimpleServer::TLdapSimpleServer(ui16 port, const TLdapMockResponses& responses, const TTlsSettings& tlsSettings)
+    : TLdapSimpleServer(port, {responses, {}}, tlsSettings)
 {}
 
-TLdapSimpleServer::TLdapSimpleServer(ui16 port, const std::pair<TLdapMockResponses, TLdapMockResponses>& responses, bool isSecureConnection)
+TLdapSimpleServer::TLdapSimpleServer(ui16 port, const std::pair<TLdapMockResponses, TLdapMockResponses>& responses, const TTlsSettings& tlsSettings)
     : Port(port)
     , Responses(responses)
+    , MtlsAuthMap(tlsSettings.MtlsAuthMap)
 {
     auto listenSocket = MakeAtomicShared<TInetStreamSocket>();
     TSockAddrInet addr((TIpHost)INADDR_ANY, Port);
@@ -38,7 +39,8 @@ TLdapSimpleServer::TLdapSimpleServer(ui16 port, const std::pair<TLdapMockRespons
     ThreadPool->Start(1);
 
     auto receiveFinish = MakeAtomicShared<TInetStreamSocket>(socketPair[0]);
-    ListenerThread = ThreadPool->Run([listenSocket, receiveFinish, &useFirstSetResponses = this->UseFirstSetResponses, &responses = this->Responses, isSecureConnection] {
+    ListenerThread = ThreadPool->Run([listenSocket, receiveFinish, &useFirstSetResponses = this->UseFirstSetResponses, &responses = this->Responses, tlsSettings,
+        &mtlsAuthMap = this->MtlsAuthMap] {
         TSocketPoller socketPoller;
         socketPoller.WaitRead(*receiveFinish, nullptr);
         socketPoller.WaitRead(*listenSocket, (void*)1);
@@ -51,12 +53,12 @@ TLdapSimpleServer::TLdapSimpleServer(ui16 port, const std::pair<TLdapMockRespons
                 if (!cookies[i]) {
                     running = false;
                 } else {
-                    TAtomicSharedPtr<TLdapSocketWrapper> socket = MakeAtomicShared<TLdapSocketWrapper>(listenSocket, isSecureConnection);
+                    TAtomicSharedPtr<TLdapSocketWrapper> socket = MakeAtomicShared<TLdapSocketWrapper>(listenSocket, tlsSettings);
                     socket->OnAccept();
 
                     SystemThreadFactory()->Run(
-                        [socket, &useFirstSetResponses, &responses] {
-                            LdapRequestHandler(socket, useFirstSetResponses ? responses.first : responses.second);
+                        [socket, &useFirstSetResponses, &responses, &mtlsAuthMap] {
+                            LdapRequestHandler(socket, useFirstSetResponses ? responses.first : responses.second, mtlsAuthMap);
                             socket->Close();
                         });
                 }

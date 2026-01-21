@@ -7,6 +7,7 @@ SIZE(MEDIUM)
 PEERDIR(
     ydb/core/testlib/default
     ydb/library/testlib/service_mocks/ldap_mock
+    ydb/core/security/certificate_check
 )
 
 YQL_LAST_ABI_VERSION()

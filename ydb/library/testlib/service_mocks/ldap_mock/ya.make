@@ -12,6 +12,7 @@ SRCS(
 
 PEERDIR(
     contrib/libs/openssl
+    ydb/core/security/certificate_check
 )
 
 END()

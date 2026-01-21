@@ -9,8 +9,8 @@
 namespace LdapMock {
 
 namespace {
-    TLdapResponse HandleLdapMessage(TAtomicSharedPtr<TLdapSocketWrapper> socket, const TLdapMockResponses& responses) {
-        TLdapRequestProcessor requestProcessor(socket);
+    TLdapResponse HandleLdapMessage(TAtomicSharedPtr<TLdapSocketWrapper> socket, const TLdapMockResponses& responses, const THashMap<TString, TString>& mtlsAuthMap) {
+        TLdapRequestProcessor requestProcessor(socket, mtlsAuthMap);
         unsigned char elementType = requestProcessor.GetByte();
         if (elementType != EElementType::SEQUENCE) {
             return TLdapResponse();
@@ -25,9 +25,9 @@ namespace {
     }
 }
 
-void LdapRequestHandler(TAtomicSharedPtr<TLdapSocketWrapper> socket, const TLdapMockResponses& responses) {
+void LdapRequestHandler(TAtomicSharedPtr<TLdapSocketWrapper> socket, const TLdapMockResponses& responses, const THashMap<TString, TString>& mtlsAuthMap) {
     while (true) {
-        TLdapResponse response = HandleLdapMessage(socket, responses);
+        TLdapResponse response = HandleLdapMessage(socket, responses, mtlsAuthMap);
         if (!response.Send(socket)) {
             break;
         }

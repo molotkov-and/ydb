@@ -15,7 +15,7 @@ public:
         TString Data;
     };
 
-    TLdapRequestProcessor(TAtomicSharedPtr<TLdapSocketWrapper> socket);
+    TLdapRequestProcessor(TAtomicSharedPtr<TLdapSocketWrapper> socket, const THashMap<TString, TString>& mtlsAuthMap);
     int ExtractMessageId();
     std::vector<TProtocolOpData> Process(const TLdapMockResponses& responses);
     unsigned char GetByte();
@@ -33,9 +33,12 @@ private:
     void ProcessFilterExtensibleMatch(TSearchRequestInfo::TSearchFilter* filter, size_t lengthFilter);
     void ProcessFilterOr(TSearchRequestInfo::TSearchFilter* filter, size_t lengthFilter);
 
+    TString GetBindDnFromClientCert();
+
 private:
     TAtomicSharedPtr<TLdapSocketWrapper> Socket;
     size_t ReadBytes = 0;
+    THashMap<TString, TString> MtlsAuthMap;
 };
 
 }

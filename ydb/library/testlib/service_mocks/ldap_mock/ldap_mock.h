@@ -7,6 +7,6 @@ class TStreamSocket;
 
 namespace LdapMock {
 
-void LdapRequestHandler(TAtomicSharedPtr<TLdapSocketWrapper> socket, const TLdapMockResponses& responses);
+void LdapRequestHandler(TAtomicSharedPtr<TLdapSocketWrapper> socket, const TLdapMockResponses& responses, const THashMap<TString, TString>& mtlsAuthMap);
 
 }

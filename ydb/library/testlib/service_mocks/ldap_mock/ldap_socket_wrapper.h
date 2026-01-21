@@ -1,4 +1,6 @@
 #pragma once
+#include "server_utils.h"
+
 #include <util/network/sock.h>
 
 #include <openssl/bio.h>
@@ -35,7 +37,7 @@ class TLdapSocketWrapper {
     using TSslHolder = THolder<T, TSslDestroy>;
 
 public:
-    TLdapSocketWrapper(TAtomicSharedPtr<TInetStreamSocket> listenSocket, bool isSecureConnection = false);
+    TLdapSocketWrapper(TAtomicSharedPtr<TInetStreamSocket> listenSocket, const TTlsSettings& tlsSettings);
 
     void Close();
     void Receive(void* buf, size_t len);
@@ -43,6 +45,7 @@ public:
     void OnAccept();
     void EnableSecureConnection();
     bool IsSecure() const;
+    TString GetClientCertSubjectName() const;
 
 private:
     ssize_t InsecureReceive(void* buf, size_t len);
@@ -59,8 +62,8 @@ private:
     TSslHolder<SSL_CTX> Ctx;
     TSslHolder<SSL> Ssl;
     TSslHolder<EVP_PKEY> Key;
-    TSslHolder<X509> X509;
-    bool IsSecureConnection = false;
+    TTlsSettings TlsSettings;
+    TString ClientSubjectName;
 
     std::function<ssize_t(TLdapSocketWrapper&, void*, size_t)> ReceiveMsg;
     std::function<ssize_t(TLdapSocketWrapper&, const void*, size_t)> SendMsg;
