@@ -262,6 +262,10 @@ private:
             }
         }
 
+        // ldap debug
+        int debugLevel = 0x0001;
+        NKikimrLdap::SetOption(nullptr, NKikimrLdap::EOption::DEBUG, &debugLevel);
+
         return {};
     }
 
