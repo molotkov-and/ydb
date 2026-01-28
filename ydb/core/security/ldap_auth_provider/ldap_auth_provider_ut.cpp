@@ -120,7 +120,6 @@ public:
         Server.GetRuntime()->SetLogPriority(NKikimrServices::TICKET_PARSER, NLog::PRI_TRACE);
         Server.GetRuntime()->SetLogPriority(NKikimrServices::GRPC_CLIENT, NLog::PRI_TRACE);
         Server.GetRuntime()->SetLogPriority(NKikimrServices::LDAP_AUTH_PROVIDER, NLog::PRI_TRACE);
-        Cerr << "+++: CaCertFile: " << ldapClientOptions.CaCertFile << Endl;
     }
 
     TTestActorRuntime* GetRuntime() const {
@@ -672,30 +671,51 @@ LdapMock::TLdapMockResponses TCorrectLdapResponse::GetAdResponses(const TString&
     return responses;
 }
 
-class TCertStore {
+class TCertStorage {
+public:
+    TCertStorage()
+        : CaCertAndKey(GenerateCA(TProps::AsCA()))
+        , ServerCertAndKey(GenerateSignedCert(CaCertAndKey, TProps::AsClientServer()))
+    {
+        CaCertFile.Write(CaCertAndKey.Certificate.c_str(), CaCertAndKey.Certificate.size());
+        ServerCertFile.Write(ServerCertAndKey.Certificate.c_str(), ServerCertAndKey.Certificate.size());
+        ServerKeyFile.Write(ServerCertAndKey.PrivateKey.c_str(), ServerCertAndKey.PrivateKey.size());
+    }
 
+    TString GetCaCertFileName() const {
+        return CaCertFile.Name();
+    }
+
+    TString GetServerCertFileName() const {
+        return ServerCertFile.Name();
+    }
+
+    TString GetServerKeyFileName() const {
+        return ServerKeyFile.Name();
+    }
+
+private:
+    TCertAndKey CaCertAndKey;
+    TCertAndKey ServerCertAndKey;
+    TTempFileHandle CaCertFile;
+    TTempFileHandle ServerCertFile;
+    TTempFileHandle ServerKeyFile;
 };
+
+TCertStorage CertStorage;
 
 void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthentication*, ui16, const TLdapClientOptions&)> initLdapSettings,
                                const TString& expectedErrorMessage,
                                const ESecurityConnectionType& securityConnectionType = ESecurityConnectionType::NON_SECURE) {
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(initLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = securityConnectionType
     });
 
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
             .Port = ydbServer.GetLdapPort(),
-            .Cert = serverCertFile.Name(),
-            .Key = serverKeyFile.Name(),
+            .Cert = CertStorage.GetServerCertFileName(),
+            .Key = CertStorage.GetServerKeyFileName(),
             .UseTls = securityConnectionType == ESecurityConnectionType::LDAPS_SCHEME
         }, LdapMock::TLdapMockResponses());
 
@@ -711,40 +731,19 @@ void CheckRequiredLdapSettings(std::function<void(NKikimrProto::TLdapAuthenticat
     ldapServer.Stop();
 }
 
-} // namespace
-
-Y_UNIT_TEST_SUITE(LdapAuthProviderTests) {
-
-// TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-// TTempFileHandle caCertFile;
-// caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
-
 void LdapFetchGroupsWithDefaultGroupAttributeGood(const ESecurityConnectionType& secureType) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    Cerr << "###\n" << caCertAndKey.Certificate << Endl;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = secureType
     });
 
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    Cerr << "$$$\n" << serverCertAndKey.Certificate << Endl;
-    Cerr << "KKK\n" << serverCertAndKey.PrivateKey << Endl;
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
-        // .Cert = "/home/molotkov-and/testcert.pem",//serverCertFile.Name(),
-        // .Key = "/home/molotkov-and/testkey.pem",//serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = secureType == ESecurityConnectionType::LDAPS_SCHEME
     }, TCorrectLdapResponse::GetResponses(login));
     ldapServer.Start();
@@ -767,6 +766,10 @@ void LdapFetchGroupsWithDefaultGroupAttributeGood(const ESecurityConnectionType&
     ldapServer.Stop();
 }
 
+} // namespace
+
+Y_UNIT_TEST_SUITE(LdapAuthProviderTests) {
+
 Y_UNIT_TEST(CanFetchGroupsWithDefaultGroupAttributeStartTls) {
     LdapFetchGroupsWithDefaultGroupAttributeGood(ESecurityConnectionType::START_TLS);
 }
@@ -783,22 +786,14 @@ Y_UNIT_TEST(CanFetchGroupsWithDefaultGroupAttributeDisableNestedGroups) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsDisableSearchNestedGroups, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login, true));
 
@@ -826,22 +821,14 @@ Y_UNIT_TEST(CanFetchGroupsFromAdServer) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login));
 
@@ -869,22 +856,14 @@ Y_UNIT_TEST(CanFetchGroupsWithDisabledRequestToAD) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsDisableSearchNestedGroups, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login, true));
 
@@ -912,22 +891,14 @@ Y_UNIT_TEST(CanFetchGroupsWithDefaultGroupAttributeUseListOfHosts) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsWithListOfHosts, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login));
 
@@ -955,22 +926,14 @@ Y_UNIT_TEST(CanFetchGroupsWithCustomGroupAttribute) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsWithCustomGroupAttribute, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login, false, "groupDN"));
 
@@ -998,11 +961,8 @@ Y_UNIT_TEST(CanFetchGroupsWithDontExistGroupAttribute) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsWithCustomGroupAttribute, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
 
@@ -1032,15 +992,10 @@ Y_UNIT_TEST(CanFetchGroupsWithDontExistGroupAttribute) {
     };
     responses.SearchResponses.push_back({fetchGroupsSearchRequestInfo, fetchGroupsSearchResponseInfo});
 
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1064,22 +1019,14 @@ Y_UNIT_TEST(CanNotFetchGroupsWithInvalidRobotUserLogin) {
     LdapMock::TLdapMockResponses responses;
     responses.BindResponses.push_back({{{.Login = "cn=invalidRobouser,dc=search,dc=yandex,dc=net", .Password = "robouserPassword"}}, {.Status = LdapMock::EStatus::INVALID_CREDENTIALS}});
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsWithInvalidRobotUserLogin, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1099,22 +1046,14 @@ Y_UNIT_TEST(CanNotFetchGroupsWithInvalidRobotUserPassword) {
     LdapMock::TLdapMockResponses responses;
     responses.BindResponses.push_back({{{.Login = "cn=robouser,dc=search,dc=yandex,dc=net", .Password = "invalidPassword"}}, {.Status = LdapMock::EStatus::INVALID_CREDENTIALS}});
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsWithInvalidRobotUserPassword, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1150,22 +1089,14 @@ Y_UNIT_TEST(CanNotFetchGroupsWithRemovedUserCredentials) {
     };
     responses.SearchResponses.push_back({removedUserSearchRequestInfo, removedUserSearchResponseInfo});
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1184,22 +1115,14 @@ Y_UNIT_TEST(CanNotFetchGroupsUseInvalidSearchFilter) {
     LdapMock::TLdapMockResponses responses;
     responses.BindResponses.push_back({{{.Login = "cn=robouser,dc=search,dc=yandex,dc=net", .Password = "robouserPassword"}}, {.Status = LdapMock::EStatus::SUCCESS}});
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsWithInvalidFilter, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1219,22 +1142,14 @@ Y_UNIT_TEST(CanRefreshGroupsInfo) {
     LdapMock::TLdapMockResponses updatedResponses = TCorrectLdapResponse::GetUpdatedResponses(login);
     const TString ldapDomain = "@ldap";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login));
     ldapServer.Start();
@@ -1290,22 +1205,14 @@ Y_UNIT_TEST(CanRefreshGroupsInfoWithDisabledNestedGroups) {
     LdapMock::TLdapMockResponses updatedResponses = TCorrectLdapResponse::GetUpdatedResponses(login, true);
     const TString ldapDomain = "@ldap";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettingsDisableSearchNestedGroups, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1357,11 +1264,8 @@ Y_UNIT_TEST(CanNotRefreshRemovedUser) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
     auto responses = TCorrectLdapResponse::GetResponses(login);
@@ -1373,15 +1277,10 @@ Y_UNIT_TEST(CanNotRefreshRemovedUser) {
 
     auto& searchResponse = updatedResponses.SearchResponses.front();
     searchResponse.second = newFetchGroupsSearchResponseInfo;
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1425,11 +1324,8 @@ Y_UNIT_TEST(CanRefreshGroupsInfoWithError) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
     auto responses = TCorrectLdapResponse::GetResponses(login);
@@ -1441,15 +1337,10 @@ Y_UNIT_TEST(CanRefreshGroupsInfoWithError) {
 
     auto& searchResponse = responses.SearchResponses.front();
     searchResponse.second = responseServerBusy;
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, responses);
 
@@ -1518,22 +1409,14 @@ Y_UNIT_TEST(CanFetchGroupsWithDelayUpdateSecurityState) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login));
 
@@ -1574,22 +1457,14 @@ Y_UNIT_TEST(CanGetErrorIfAppropriateLoginProviderIsAbsent) {
     TString login = "ldapuser";
     TString password = "ldapUserPassword";
 
-    TCertAndKey caCertAndKey = GenerateCA(TProps::AsCA());
-    TTempFileHandle caCertFile;
-    caCertFile.Write(caCertAndKey.Certificate.c_str(), caCertAndKey.Certificate.size());
     TLdapKikimrServer ydbServer(InitLdapSettings, {
-        .CaCertFile = caCertFile.Name(),
+        .CaCertFile = CertStorage.GetCaCertFileName(),
         .Type = ESecurityConnectionType::NON_SECURE
     });
-    TTempFileHandle serverCertFile;
-    TTempFileHandle serverKeyFile;
-    TCertAndKey serverCertAndKey = GenerateSignedCert(caCertAndKey, TProps::AsClientServer());
-    serverCertFile.Write(serverCertAndKey.Certificate.c_str(), serverCertAndKey.Certificate.size());
-    serverKeyFile.Write(serverCertAndKey.PrivateKey.c_str(), serverCertAndKey.PrivateKey.size());
     LdapMock::TSimpleServer ldapServer({
         .Port = ydbServer.GetLdapPort(),
-        .Cert = serverCertFile.Name(),
-        .Key = serverKeyFile.Name(),
+        .Cert = CertStorage.GetServerCertFileName(),
+        .Key = CertStorage.GetServerKeyFileName(),
         .UseTls = false
     }, TCorrectLdapResponse::GetResponses(login));
 

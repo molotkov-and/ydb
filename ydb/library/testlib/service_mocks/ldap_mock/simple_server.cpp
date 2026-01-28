@@ -25,21 +25,17 @@ bool TSimpleServer::Start() {
 
     InitOpenSsl();
 
-    Cerr << "+++ 1111111" << Endl;
     if (!InitListenSocket()) {
         Running = false;
-        Cerr << "+++ InitListenSocket false" << Endl;
         return false;
     }
     if (!InitTlsCtx()) {
         Running = false;
-        Cerr << "+++ aaaaaaaaaaaaaaa" << Endl;
         if (Ctx) {
             Ctx.Destroy();
         }
         return false;
     }
-    Cerr << "+++ qqqqqqqqqqqq" << Endl;
     Worker = std::thread([this]{ ThreadMain(); });
     return true;
 }
@@ -74,11 +70,9 @@ void TSimpleServer::ReplaceResponses(TLdapMockResponses&& responses) {
 }
 
 void TSimpleServer::ThreadMain() {
-    Cerr << "+++ 22222" << Endl;
     while (Running) {
         int fd = ::accept(ListenSocket, nullptr, nullptr);
         if (fd < 0) continue;
-        Cerr << "+++ 33333" << Endl;
         HandleClient_(fd);
 
         ::shutdown(fd, SHUT_RDWR);
@@ -91,7 +85,6 @@ void TSimpleServer::HandleClient_(int fd) {
     if (Opt.UseTls) {
         socket->UpgradeToTls(Ctx.Get());
     }
-    Cerr << "+++ Handle client" << Endl;
 
     while (Running) {
         TLdapRequestProcessor requestProcessor(socket);
@@ -120,10 +113,8 @@ void TSimpleServer::HandleClient_(int fd) {
         }
         if (!socket->isTls() && response.EnableTls()) {
             if (!socket->UpgradeToTls(Ctx.Get())) {
-                Cerr << "+++ UpgradeToTls false" << Endl;
                 break;
             }
-            Cerr << "+++ UpgradeToTls" << Endl;
         }
     }
 }
@@ -136,7 +127,6 @@ void TSimpleServer::InitOpenSsl() {
 bool TSimpleServer::InitListenSocket() {
     ListenSocket = ::socket(AF_INET, SOCK_STREAM, 0);
     if (ListenSocket < 0) {
-        Cerr << "+++ socket" << Endl;
         return false;
     }
 
@@ -147,23 +137,19 @@ bool TSimpleServer::InitListenSocket() {
     addr.sin_family = AF_INET;
     addr.sin_port = htons(Opt.Port);
     if (::inet_pton(AF_INET, "127.0.0.1", &addr.sin_addr) != 1) {
-        Cerr << "+++ inet_pton" << Endl;
         return false;
     }
 
     if (::bind(ListenSocket, (sockaddr*)&addr, sizeof(addr)) != 0) {
-        Cerr << "+++ bind" << Endl;
         return false;
     }
 
     if (::listen(ListenSocket, 16) != 0) {
-        Cerr << "+++ listen" << Endl;
         return false;
     }
 
     socklen_t len = sizeof(addr);
     if (::getsockname(ListenSocket, (sockaddr*)&addr, &len) != 0) {
-        Cerr << "+++ getsockname" << Endl;
         return false;
     }
 
@@ -182,7 +168,7 @@ int TSimpleServer::VerifyCb(int ok, X509_STORE_CTX* store) {
 
     Cerr <<  "verify: ok=" << ok << " depth=" << depth << " err=" << err << " ("<< X509_verify_cert_error_string(err) << ") subject="<< subj << "\n" << Endl;
 
-    return ok; // или 1 для "принять всё" чисто для отладки
+    return ok;
 }
 
 bool TSimpleServer::InitTlsCtx() {
@@ -192,13 +178,11 @@ bool TSimpleServer::InitTlsCtx() {
     }
 
     if (SSL_CTX_use_certificate_file(Ctx.Get(), Opt.Cert.c_str(), SSL_FILETYPE_PEM) != 1) {
-        Cerr << "+++ SSL_CTX_use_certificate_file" << Endl;
         ERR_print_errors_fp(stderr);
         return false;
     }
 
     if (SSL_CTX_use_PrivateKey_file(Ctx.Get(), Opt.Key.c_str(), SSL_FILETYPE_PEM) != 1) {
-        Cerr << "+++ SSL_CTX_use_PrivateKey_file" << Endl;
         ERR_print_errors_fp(stderr);
         return false;
     }

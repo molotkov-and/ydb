@@ -218,8 +218,6 @@ private:
         int result = 0;
         if (Settings.GetScheme() == NKikimrLdap::LDAPS_SCHEME || Settings.GetUseTls().GetEnable()) {
             const TString& caCertificateFile = Settings.GetUseTls().GetCaCertFile();
-            LDAP_LOG_D("+++++: caCertificateFile: " << caCertificateFile.c_str());
-            // result = NKikimrLdap::SetOption(*ld, NKikimrLdap::EOption::TLS_CACERTFILE, "/home/molotkov-and/testca.pem");
             result = NKikimrLdap::SetOption(*ld, NKikimrLdap::EOption::TLS_CACERTFILE, caCertificateFile.c_str());
             if (!NKikimrLdap::IsSuccess(result)) {
                 TStringBuilder logErrorMessage;
@@ -263,14 +261,6 @@ private:
                         {.Message = ERROR_MESSAGE, .LogMessage = logErrorMessage, .Retryable = NKikimrLdap::IsRetryableError(result)}}};
             }
         }
-
-        int hard = 1;//LDAP_OPT_X_TLS_HARD;
-        // ldap_set_option(ld, 0x600f, &hard);
-        NKikimrLdap::SetOption(*ld, NKikimrLdap::EOption::TLS_NEWCTX, &hard);
-
-        // ldap debug
-        int debugLevel = 0x0001;
-        NKikimrLdap::SetOption(nullptr, NKikimrLdap::EOption::DEBUG, &debugLevel);
 
         return {};
     }
