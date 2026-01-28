@@ -22,6 +22,7 @@ enum class EOption {
     TLS_CACERTDIR,
     TLS_REQUIRE_CERT,
     PROTOCOL_VERSION,
+    TLS_NEWCTX,
 };
 
 int Bind(LDAP* ld, const TString& dn, const TString& password);

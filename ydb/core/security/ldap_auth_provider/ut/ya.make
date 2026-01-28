@@ -4,6 +4,8 @@ FORK_SUBTESTS()
 
 SIZE(MEDIUM)
 
+# TIMEOUT(40)
+
 PEERDIR(
     ydb/core/testlib/default
     ydb/library/testlib/service_mocks/ldap_mock

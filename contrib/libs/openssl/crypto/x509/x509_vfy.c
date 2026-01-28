@@ -3302,6 +3302,8 @@ static int build_chain(X509_STORE_CTX *ctx)
         if (ctx->num_untrusted < num)
             return verify_cb_cert(ctx, NULL, num-1,
                                   X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT);
+        fprintf(stderr, "+++++++++++++++++++++++++++++++++++++++++++verify:");
+        X509_STORE_CTX_get_current_cert(ctx);
         return verify_cb_cert(ctx, NULL, num-1,
                               X509_V_ERR_UNABLE_TO_GET_ISSUER_CERT_LOCALLY);
     }
