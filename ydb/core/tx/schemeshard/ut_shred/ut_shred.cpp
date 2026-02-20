@@ -74,6 +74,31 @@ namespace {
     }
 }
 
+Y_UNIT_TEST_SUITE(TenantShredTest) {
+    Y_UNIT_TEST(ShredWithGeneration0IsCompleted) {
+        TTestBasicRuntime runtime;
+        TTestEnv env(runtime);
+        runtime.SetLogPriority(NKikimrServices::FLAT_TX_SCHEMESHARD, NActors::NLog::PRI_TRACE);
+        runtime.GetAppData().FeatureFlags.SetEnableDataErasure(true);
+        auto& shredConfig = runtime.GetAppData().ShredConfig;
+        shredConfig.SetDataErasureIntervalSeconds(3);
+        shredConfig.SetBlobStorageControllerRequestIntervalSeconds(1);
+
+        auto sender = runtime.AllocateEdgeActor();
+        ui64 txId = 100;
+        ui64 tenantSchemeSHard = CreateTestExtSubdomain(runtime, env, &txId, "Database1", {.Table = true});
+        Cerr << "+++ tss# " << tenantSchemeSHard << Endl;
+
+        runtime.SendToPipe(tenantSchemeSHard, sender, new TEvSchemeShard::TEvTenantShredRequest(0), 0, GetPipeConfigWithRetries());
+        TAutoPtr<IEventHandle> handle;
+        auto response = runtime.GrabEdgeEventRethrow<TEvSchemeShard::TEvTenantShredResponse>(handle);
+        Cerr << "+++ gen# " << response->Record.GetGeneration() << Endl;
+        Cerr << "+++ tss id# " << response->Record.GetPathId().GetLocalId() << Endl;
+        UNIT_ASSERT_EQUAL_C(response->Record.GetGeneration(), 0, response->Record.GetGeneration());
+        UNIT_ASSERT_EQUAL_C(response->Record.GetStatus(), NKikimrScheme::TEvTenantShredResponse::COMPLETED, static_cast<ui32>(response->Record.GetStatus()));
+    }
+}
+
 Y_UNIT_TEST_SUITE(TestShred) {
     void SimpleShredTest(const TSchemeObject& createSchemeObject, ui64 currentBscGeneration = 0) {
         TTestBasicRuntime runtime;

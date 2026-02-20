@@ -234,6 +234,7 @@ SRCS(
     schemeshard__table_stats.cpp
     schemeshard__table_stats_histogram.cpp
     schemeshard__tenant_shred_manager.cpp
+    schemeshard__tenant_shred_manager_v2.cpp
     schemeshard__unmark_restore_tables.cpp
     schemeshard__upgrade_access_database.cpp
     schemeshard__upgrade_schema.cpp

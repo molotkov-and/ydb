@@ -5117,7 +5117,7 @@ void TSchemeShard::Die(const TActorContext &ctx) {
     if (BorrowedCompactionQueue) {
         BorrowedCompactionQueue->Shutdown(ctx);
     }
-    
+
     if (ForcedCompactionQueue) {
         ForcedCompactionQueue->Shutdown(ctx);
     }
@@ -8697,27 +8697,37 @@ TDuration TSchemeShard::SendBaseStatsToSA() {
     }
 }
 
-THolder<TShredManager> TSchemeShard::CreateShredManager(const NKikimrConfig::TDataErasureConfig& config) {
-    if (IsDomainSchemeShard) {
-        return MakeHolder<TRootShredManager>(this, config);
-    } else {
-        return MakeHolder<TTenantShredManager>(this, config);
-    }
-}
+// THolder<TShredManager> TSchemeShard::CreateShredManager(const NKikimrConfig::TDataErasureConfig& config) {
+//     if (IsDomainSchemeShard) {
+//         return MakeHolder<TRootShredManager>(this, config);
+//     } else {
+//         return MakeHolder<TTenantShredManager>(this, config);
+//     }
+// }
 
 void TSchemeShard::ConfigureShredManager(const NKikimrConfig::TDataErasureConfig& config) {
-    if (ShredManager) {
-        ShredManager->UpdateConfig(config);
-    } else {
-        ShredManager = CreateShredManager(config);
+    if (IsDomainSchemeShard) {
+        if (ShredManager) {
+            ShredManager->UpdateConfig(config);
+        } else {
+            ShredManager = MakeHolder<TRootShredManager>(this, config);//CreateShredManager(config);
+        }
+    }
+    if (!TenantShredManager) {
+        TenantShredManager = MakeHolder<TTenantShredManager>(this, config);
     }
 }
 
 void TSchemeShard::StartStopShred() {
     if (EnableShred) {
-        ShredManager->Start();
+        if (IsDomainSchemeShard) {
+            ShredManager->Start();
+        }
+        TenantShredManager->Start();
     } else {
-        ShredManager->Stop();
+        if (IsDomainSchemeShard) {
+            ShredManager->Stop();
+        }
     }
 }
 

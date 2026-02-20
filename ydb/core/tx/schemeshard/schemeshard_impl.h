@@ -22,6 +22,7 @@
 #include "schemeshard_shard_deleter.h"
 #include "schemeshard_tx_infly.h"
 #include "schemeshard_types.h"
+#include "schemeshard__tenant_shred_manager.h"
 
 #include <ydb/core/base/channel_profiles.h>
 #include <ydb/core/base/hive.h>
@@ -1862,7 +1863,7 @@ public:
     void ConnectToSA();
     TDuration SendBaseStatsToSA();
 
-    THolder<TShredManager> CreateShredManager(const NKikimrConfig::TDataErasureConfig& config);
+    // THolder<TShredManager> CreateShredManager(const NKikimrConfig::TDataErasureConfig& config);
     void ConfigureShredManager(const NKikimrConfig::TDataErasureConfig& config);
     void StartStopShred();
     void MarkFirstRunRootShredManager();
@@ -1893,6 +1894,7 @@ public:
     TActorId LoginHelper;
 
     THolder<TShredManager> ShredManager = nullptr;
+    THolder<TTenantShredManager> TenantShredManager = nullptr;
 
     THashSet<TActorId> RunningContinuousBackupCleaners;
 
