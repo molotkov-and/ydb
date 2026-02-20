@@ -1,4 +1,5 @@
-#include "schemeshard__shred_manager.h"
+#include "schemeshard__domain_shred_manager.h"
+#include "schemeshard__tenant_shred_manager.h"
 #include "schemeshard_impl.h"
 #include "schemeshard_index_build_info.h"
 #include "schemeshard_pq_helpers.h"  // for PQGroupReserve
@@ -1912,9 +1913,14 @@ struct TSchemeShard::TTxInit : public TTransactionBase<TSchemeShard> {
 
         }
 
-        // Read Running shred for tenants
+        // Read Running shred
         {
-            if (!Self->ShredManager->Restore(db)) {
+            if (Self->IsDomainSchemeShard) {
+                if (!Self->DomainShredManager->Restore(db)) {
+                    return false;
+                }
+            }
+            if (!Self->TenantShredManager->Restore(db)) {
                 return false;
             }
         }
