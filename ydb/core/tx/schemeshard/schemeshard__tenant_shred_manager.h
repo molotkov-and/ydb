@@ -34,8 +34,8 @@ using TQueue = NOperationQueue::TOperationQueueWithTimer<
         NOperationQueue::EStartStatus StartOperation(const TShardIdx& shardIdx) override;
         void OnTimeout(const TShardIdx& shardIdx) override;
 
-    // private:
-    //     TTenantShredManager* const Manager;
+    private:
+        TTenantShredManager* const Manager;
     };
 
 private:
@@ -57,11 +57,11 @@ public:
     // void ClearWaitingShredRequests(NIceDb::TNiceDb& db) override;
     // void ClearWaitingShredRequests() override;
     // void WakeupToRunShred(TEvSchemeShard::TEvWakeupToRunShred::TPtr& ev, const NActors::TActorContext& ctx) override;
-    // void Run(NIceDb::TNiceDb& db) override;
+    void StartShred(NIceDb::TNiceDb& db, ui64 newGen);
     // void Continue() override;
-    // void HandleDisconnect(TTabletId tabletId, const TActorId& clientId, const TActorContext& ctx) override;
-    // void OnDone(const TPathId& pathId, NIceDb::TNiceDb& db) override;
-    // void OnDone(const TTabletId& tabletId, NIceDb::TNiceDb& db) override;
+    void HandleDisconnect(TTabletId tabletId, const TActorId& clientId, const TActorContext& ctx);
+    void FinishShred(NIceDb::TNiceDb& db, const TTabletId& tabletId);
+    void RetryShred(const TTabletId& tabletId);
     // void ScheduleRequestToBSC() override;
     // void SendRequestToBSC() override;
     // void Complete() override;
@@ -79,9 +79,9 @@ public:
 private:
     static TQueue::TConfig ConvertConfig(const NKikimrConfig::TDataErasureConfig& config);
 
-    // NOperationQueue::EStartStatus StartShred(const TShardIdx& shardIdx);
+    NOperationQueue::EStartStatus StartShredOperation(const TShardIdx& shardIdx);
     // void OnTimeout(const TShardIdx& shardIdx);
-    // void Enqueue(const TShardIdx& shardIdx);
+    // bool Enqueue(const TShardIdx& shardIdx);
     // void UpdateMetrics();
     // void SendResponseToRootSchemeShard();
 };

@@ -6246,7 +6246,10 @@ void TSchemeShard::Handle(TEvTabletPipe::TEvClientConnected::TPtr &ev, const TAc
 
     BorrowedCompactionHandleDisconnect(tabletId, clientId);
     ConditionalEraseHandleDisconnect(tabletId, clientId, ctx);
-    ShredManager->HandleDisconnect(tabletId, clientId, ctx);
+    if (IsDomainSchemeShard) {
+        ShredManager->HandleDisconnect(tabletId, clientId, ctx);
+    }
+    TenantShredManager->HandleDisconnect(tabletId, clientId, ctx);
     RestartPipeTx(tabletId, ctx);
 }
 
@@ -6297,7 +6300,10 @@ void TSchemeShard::Handle(TEvTabletPipe::TEvClientDestroyed::TPtr &ev, const TAc
 
     BorrowedCompactionHandleDisconnect(tabletId, clientId);
     ConditionalEraseHandleDisconnect(tabletId, clientId, ctx);
-    ShredManager->HandleDisconnect(tabletId, clientId, ctx);
+    if (IsDomainSchemeShard) {
+        ShredManager->HandleDisconnect(tabletId, clientId, ctx);
+    }
+    TenantShredManager->HandleDisconnect(tabletId, clientId, ctx);
     RestartPipeTx(tabletId, ctx);
 }
 

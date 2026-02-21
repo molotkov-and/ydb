@@ -529,107 +529,107 @@ namespace NKikimr::NSchemeShard {
 //     return new TTxRunTenantShred(this, ev);
 // }
 
-template <typename TEvType>
-struct TSchemeShard::TTxCompleteShredShard : public TSchemeShard::TRwTxBase {
-    TEvType Ev;
-    bool NeedResponseComplete = false;
+// template <typename TEvType>
+// struct TSchemeShard::TTxCompleteShredShard : public TSchemeShard::TRwTxBase {
+//     TEvType Ev;
+//     bool NeedResponseComplete = false;
 
-    TTxCompleteShredShard(TSelf *self, TEvType& ev)
-        : TRwTxBase(self)
-        , Ev(std::move(ev))
-    {}
+//     TTxCompleteShredShard(TSelf *self, TEvType& ev)
+//         : TRwTxBase(self)
+//         , Ev(std::move(ev))
+//     {}
 
-    TTxType GetTxType() const override { return TXTYPE_COMPLETE_SHRED_SHARD; }
+//     TTxType GetTxType() const override { return TXTYPE_COMPLETE_SHRED_SHARD; }
 
-    void DoExecute(TTransactionContext& txc, const TActorContext& ctx) override {
-        LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
-            "TTxCompleteShredShard Execute at schemestard: " << Self->TabletID());
+//     void DoExecute(TTransactionContext& txc, const TActorContext& ctx) override {
+//         LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+//             "TTxCompleteShredShard Execute at schemestard: " << Self->TabletID());
 
-        if (!IsSuccess(Ev)) {
-            HandleBadStatus(Ev, ctx);
-            return; // will be retried after timeout in the queue in TTenantShredManager::OnTimeout()
-        }
+//         if (!IsSuccess(Ev)) {
+//             HandleBadStatus(Ev, ctx);
+//             return; // will be retried after timeout in the queue in TTenantShredManager::OnTimeout()
+//         }
 
-        const ui64 cleanupGeneration = GetCleanupGeneration(Ev);
-        auto& manager = Self->ShredManager;
-        if (cleanupGeneration != manager->GetGeneration()) {
-            LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
-                "TTxCompleteShredShard: Unknown generation#" << cleanupGeneration
-                                             << ", Expected gen# " << manager->GetGeneration() << " at schemestard: " << Self->TabletID());
-            return;
-        }
-        NIceDb::TNiceDb db(txc.DB);
-        manager->OnDone(TTabletId(GetTabletId(Ev)), db);
-        if (Self->ShredManager->GetStatus() == EShredStatus::COMPLETED) {
-            NeedResponseComplete = true;
-        }
-    }
+//         const ui64 cleanupGeneration = GetCleanupGeneration(Ev);
+//         auto& manager = Self->ShredManager;
+//         if (cleanupGeneration != manager->GetGeneration()) {
+//             LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+//                 "TTxCompleteShredShard: Unknown generation#" << cleanupGeneration
+//                                              << ", Expected gen# " << manager->GetGeneration() << " at schemestard: " << Self->TabletID());
+//             return;
+//         }
+//         NIceDb::TNiceDb db(txc.DB);
+//         manager->OnDone(TTabletId(GetTabletId(Ev)), db);
+//         if (Self->ShredManager->GetStatus() == EShredStatus::COMPLETED) {
+//             NeedResponseComplete = true;
+//         }
+//     }
 
-    void DoComplete(const TActorContext& ctx) override {
-        LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
-            "TTxCompleteShredShard Complete at schemestard: " << Self->TabletID()
-            << ", NeedResponseComplete# " << (NeedResponseComplete ? "true" : "false"));
+//     void DoComplete(const TActorContext& ctx) override {
+//         LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+//             "TTxCompleteShredShard Complete at schemestard: " << Self->TabletID()
+//             << ", NeedResponseComplete# " << (NeedResponseComplete ? "true" : "false"));
 
-        // if (NeedResponseComplete) {
-        //     NKikimr::NSchemeShard::SendResponseToRootSchemeShard(Self, ctx);
-        // }
-    }
+//         // if (NeedResponseComplete) {
+//         //     NKikimr::NSchemeShard::SendResponseToRootSchemeShard(Self, ctx);
+//         // }
+//     }
 
-private:
-    bool IsSuccess(TEvDataShard::TEvVacuumResult::TPtr& ev) const {
-        const auto& record = ev->Get()->Record;
-        return record.GetStatus() == NKikimrTxDataShard::TEvVacuumResult::OK;
-    }
+// private:
+//     bool IsSuccess(TEvDataShard::TEvVacuumResult::TPtr& ev) const {
+//         const auto& record = ev->Get()->Record;
+//         return record.GetStatus() == NKikimrTxDataShard::TEvVacuumResult::OK;
+//     }
 
-    void HandleBadStatus(TEvDataShard::TEvVacuumResult::TPtr& ev, const TActorContext& ctx) const {
-        const auto& record = ev->Get()->Record;
-        LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
-            "TTxCompleteShredShard: shred failed at DataShard#" << record.GetTabletId()
-            << " with status: " << NKikimrTxDataShard::TEvVacuumResult::EStatus_Name(record.GetStatus())
-            << ", schemestard: " << Self->TabletID());
-    }
+//     void HandleBadStatus(TEvDataShard::TEvVacuumResult::TPtr& ev, const TActorContext& ctx) const {
+//         const auto& record = ev->Get()->Record;
+//         LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+//             "TTxCompleteShredShard: shred failed at DataShard#" << record.GetTabletId()
+//             << " with status: " << NKikimrTxDataShard::TEvVacuumResult::EStatus_Name(record.GetStatus())
+//             << ", schemestard: " << Self->TabletID());
+//     }
 
-    ui64 GetCleanupGeneration(TEvDataShard::TEvVacuumResult::TPtr& ev) const {
-        const auto& record = ev->Get()->Record;
-        return record.GetVacuumGeneration();
-    }
+//     ui64 GetCleanupGeneration(TEvDataShard::TEvVacuumResult::TPtr& ev) const {
+//         const auto& record = ev->Get()->Record;
+//         return record.GetVacuumGeneration();
+//     }
 
-    ui64 GetTabletId(TEvDataShard::TEvVacuumResult::TPtr& ev) const {
-        const auto& record = ev->Get()->Record;
-        return record.GetTabletId();
-    }
+//     ui64 GetTabletId(TEvDataShard::TEvVacuumResult::TPtr& ev) const {
+//         const auto& record = ev->Get()->Record;
+//         return record.GetTabletId();
+//     }
 
-    bool IsSuccess(TEvKeyValue::TEvVacuumResponse::TPtr& ev) {
-        const auto& record = ev->Get()->Record;
-        return record.status() == NKikimrKeyValue::VacuumResponse::STATUS_SUCCESS;
-    }
+//     bool IsSuccess(TEvKeyValue::TEvVacuumResponse::TPtr& ev) {
+//         const auto& record = ev->Get()->Record;
+//         return record.status() == NKikimrKeyValue::VacuumResponse::STATUS_SUCCESS;
+//     }
 
-    void HandleBadStatus(TEvKeyValue::TEvVacuumResponse::TPtr& ev, const TActorContext& ctx) const {
-        const auto& record = ev->Get()->Record;
-        LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
-            "TTxCompleteShredShard: shred failed at KeyValue#" << record.tablet_id()
-            << " with status: " << NKikimrKeyValue::VacuumResponse::Status_Name(record.status())
-            << ", schemestard: " << Self->TabletID());
-    }
+//     void HandleBadStatus(TEvKeyValue::TEvVacuumResponse::TPtr& ev, const TActorContext& ctx) const {
+//         const auto& record = ev->Get()->Record;
+//         LOG_DEBUG_S(ctx, NKikimrServices::FLAT_TX_SCHEMESHARD,
+//             "TTxCompleteShredShard: shred failed at KeyValue#" << record.tablet_id()
+//             << " with status: " << NKikimrKeyValue::VacuumResponse::Status_Name(record.status())
+//             << ", schemestard: " << Self->TabletID());
+//     }
 
-    ui64 GetCleanupGeneration(TEvKeyValue::TEvVacuumResponse::TPtr& ev) const {
-        const auto& record = ev->Get()->Record;
-        return record.actual_generation();
-    }
+//     ui64 GetCleanupGeneration(TEvKeyValue::TEvVacuumResponse::TPtr& ev) const {
+//         const auto& record = ev->Get()->Record;
+//         return record.actual_generation();
+//     }
 
-    ui64 GetTabletId(TEvKeyValue::TEvVacuumResponse::TPtr& ev) const {
-        const auto& record = ev->Get()->Record;
-        return record.tablet_id();
-    }
-};
+//     ui64 GetTabletId(TEvKeyValue::TEvVacuumResponse::TPtr& ev) const {
+//         const auto& record = ev->Get()->Record;
+//         return record.tablet_id();
+//     }
+// };
 
-template <typename TEvType>
-NTabletFlatExecutor::ITransaction* TSchemeShard::CreateTxCompleteShredShard(TEvType& ev) {
-    return new TTxCompleteShredShard(this, ev);
-}
+// template <typename TEvType>
+// NTabletFlatExecutor::ITransaction* TSchemeShard::CreateTxCompleteShredShard(TEvType& ev) {
+//     return new TTxCompleteShredShard(this, ev);
+// }
 
-template NTabletFlatExecutor::ITransaction* TSchemeShard::CreateTxCompleteShredShard<TEvDataShard::TEvVacuumResult::TPtr>(TEvDataShard::TEvVacuumResult::TPtr& ev);
-template NTabletFlatExecutor::ITransaction* TSchemeShard::CreateTxCompleteShredShard<TEvKeyValue::TEvVacuumResponse::TPtr>(TEvKeyValue::TEvVacuumResponse::TPtr& ev);
+// template NTabletFlatExecutor::ITransaction* TSchemeShard::CreateTxCompleteShredShard<TEvDataShard::TEvVacuumResult::TPtr>(TEvDataShard::TEvVacuumResult::TPtr& ev);
+// template NTabletFlatExecutor::ITransaction* TSchemeShard::CreateTxCompleteShredShard<TEvKeyValue::TEvVacuumResponse::TPtr>(TEvKeyValue::TEvVacuumResponse::TPtr& ev);
 
 struct TSchemeShard::TTxAddNewShardToShred : public TSchemeShard::TRwTxBase {
     TEvPrivate::TEvAddNewShardToShred::TPtr Ev;
