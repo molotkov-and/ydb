@@ -297,7 +297,7 @@ TString TRequest::GetAuthToken() const {
 }
 
 TString TRequest::GetAuthToken(NHttp::THttpIncomingRequestPtr request) const {
-    NHttp::THeaders headers(Request->Headers);
+    NHttp::THeaders headers(request->Headers);
     NHttp::TCookies cookies(headers["Cookie"]);
     TStringBuf authorization = headers["Authorization"];
     if (!authorization.empty()) {
